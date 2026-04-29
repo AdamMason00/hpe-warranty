@@ -1659,20 +1659,21 @@ function renderMyBanner(){
   if(!CU)return;
   var m=getMyClaims();var aged=m.filter(function(c){return ageDays(c.age)>=20;}).length;
   if(CU.role==='admin'){renderAdminOverview();return;}
-  document.getElementById('mcb-n').textContent=CU.role==='tech'?CU.name+"'s Claims":CU.role==='finance'?'Pending Payment':'All Claims';
-  document.getElementById('mcb-a').textContent=m.filter(function(c){return['new','ins','appr'].includes(c.s);}).length;
-  document.getElementById('mcb-s').textContent=m.filter(function(c){return['sub','oem'].includes(c.s);}).length;
-  document.getElementById('mcb-ap').textContent=m.filter(function(c){return['app','pay'].includes(c.s);}).length;
-  document.getElementById('mcb-aged').textContent=aged;
-  document.getElementById('my-cnt').textContent=m.length;
-  // IR badge for techs
+  if(CU.role==='sa')return; // SA has no My Claims page
+  var _s=function(id,v){var el=document.getElementById(id);if(el)el.textContent=v;};
+  _s('mcb-n',CU.role==='tech'?CU.name+"'s Claims":CU.role==='finance'?'Pending Payment':'All Claims');
+  _s('mcb-a',m.filter(function(c){return['new','ins','appr'].includes(c.s);}).length);
+  _s('mcb-s',m.filter(function(c){return['sub','oem'].includes(c.s);}).length);
+  _s('mcb-ap',m.filter(function(c){return['app','pay'].includes(c.s);}).length);
+  _s('mcb-aged',aged);
+  _s('my-cnt',m.length);
   var myOpenIRs=CU.role==='tech'?CLAIMS.filter(function(c){return c.tech===CU.name&&c.info;}).length:0;
   var irBadge=document.getElementById('my-ir-badge');
   if(irBadge){irBadge.textContent=myOpenIRs;irBadge.style.display=myOpenIRs>0?'inline-flex':'none';}
-  document.getElementById('my-pt').textContent=CU.role==='tech'?CU.name+"'s Claims":CU.role==='finance'?'Pending Payment':'All Claims';
-  document.getElementById('my-tt').textContent=CU.role==='finance'?'Claims awaiting credit entry':'Active claims';
+  _s('my-pt',CU.role==='tech'?CU.name+"'s Claims":CU.role==='finance'?'Pending Payment':'All Claims');
+  _s('my-tt',CU.role==='finance'?'Claims awaiting credit entry':'Active claims');
   renderAgeAlerts(m,'my-age-alerts');
-  var irsec=document.getElementById('my-ir-sec');
+  var irsec=document.getElementById('my-ir-sec');if(!irsec)return;
   var myIRs=CU.role==='tech'?CLAIMS.filter(function(c){return c.tech===CU.name&&c.info;}):[];
   if(!myIRs.length){irsec.innerHTML='';return;}
   irsec.innerHTML='<div style="margin-top:10px"><div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--or);margin-bottom:9px">Information Requested by '+getMgrForTech(CU.name)+'</div>'+
