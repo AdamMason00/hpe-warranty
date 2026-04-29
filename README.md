@@ -1,97 +1,97 @@
-# Hyde Park Equipment — Warranty Management System
-
+Hyde Park Equipment — Warranty Management System
 A warranty claim management web app for Hyde Park Equipment Ltd. Built for HYD010 (London) and HYD020 locations. Manages the full warranty lifecycle from work order review through OEM submission, reconciliation, and archive.
 
----
+Live App
+https://adammason00.github.io/hpe-warranty/
+Bookmark on phones and tablets — works as a mobile web app.
 
-## Live App
+Current Version — v9
+File: index.html (273KB, standalone, no dependencies)
+Data source: warranty_data.csv (exported from DMS, loaded on login)
+Hosting: GitHub Pages (static, free)
+Architecture: Single HTML file, vanilla JS, no frameworks
+What's in v9
 
-Once deployed, the app will be available at:
-```
-https://[your-github-username].github.io/hpe-warranty/
-```
+Real CSV work order data loaded on login (exported from DMS)
+WO prefix routing — WS* = HYD010, WM* = HYD020
+Service Advisor role (Stew, Bryan) — view-only WOs at their location
+Management access via PIN (triple-tap logo → enter PIN)
+Real photo upload with camera capture on mobile
+Mobile photo uploader — shareable #upload URL for techs
+Reconciliation with DMS closed WO tracking — flags missing OEM claim numbers and admin notes
+Analytics with parts/labour/hours breakdown and individual user drill-down
+OEM-specific claim writing coach (Kubota, Toro, Walker, Stihl)
+AI Three Cs narrative review before manager approval
+Part retention tracking with printable disposal labels
 
----
 
-## Quick Deploy to GitHub Pages
+Locations & Staff
+CodeManagerTechniciansHYD010SteveJohn, Jared, Tyler, Ed, Al, Logan, Caden, AlexHYD020BillAndrew, Alex, Nate, Don
+Service Advisors: Stew (HYD010), Bryan (HYD020)
+Warranty Admin: Andy
+Admin/Finance: Anne
+Management: Brian Apfelbeck, Adam Mason, John Williams — triple-tap gear logo → enter PIN 4824
 
-### Step 1 — Create a GitHub account
-If you don't already have one, go to [github.com](https://github.com) and sign up. It's free.
+Role Access
+RoleWhoWhat They SeeTechnicianSelect name → Sign InMy Claims (own only), Pending WOs, New Claim with photo uploadService AdvisorStew / BryanWOs at their location (view-only), Add NotesWarranty AdminAndyFull claim workflow, OEM submissions, Task List, WO Review, Validity Checks, ArchiveService ManagerSteve / BillDashboard, All Claims (own location), Approvals, Info Requests, AnalyticsAdmin/FinanceAnneReconciliation, Pending Payment claimsManagementPIN accessEverything across both locations, Staff management
 
-### Step 2 — Create a new repository
-1. Click the **+** button top right → **New repository**
-2. Name it: `hpe-warranty`
-3. Set it to **Private** (recommended — only people with the link can access)
-4. Click **Create repository**
+Claim Workflow
+DMS Work Order Created
+  → Tech Claims WO & Uploads Photos
+    → Submits Claim (Three Cs + AI Review)
+      → Service Manager Approves
+        → Warranty Admin Submits to OEM Portal
+          → OEM Issues Credit
+            → Finance Reconciles
+              → Closed → Archive
+Target: claim submitted within 14 days of work completion.
 
-### Step 3 — Upload the files
-1. On your new repository page, click **uploading an existing file**
-2. Drag and drop ALL files from this folder into the upload area:
-   - `index.html`
-   - `README.md`
-   - `.github/` folder (the whole folder)
-3. Scroll down, add a commit message like `Initial deployment`
-4. Click **Commit changes**
+CSV Data
+The app loads work order data from warranty_data.csv on login. This file is exported from your DMS.
+To update the CSV data:
 
-### Step 4 — Enable GitHub Pages
-1. Go to your repository **Settings** (top menu)
-2. Click **Pages** in the left sidebar
-3. Under **Source**, select **GitHub Actions**
-4. The workflow will run automatically — wait about 60 seconds
-5. Refresh the page — your live URL will appear at the top
+Export work orders from your DMS
+Rename the export file to warranty_data.csv
+Go to the GitHub repo → click on warranty_data.csv → click the pencil icon
+Delete all content → paste the new CSV data → Commit changes
+The app will load the new data on next login
 
-### Step 5 — Share the URL
-Copy the URL (format: `https://[username].github.io/hpe-warranty/`) and share it with your team. Bookmark it on phones and tablets — it works as a mobile web app.
+CSV columns used:
+ColumnIndexDescriptionDivision0Location prefix (backup)Customer Last/First/Ext1-3Customer nameDoc Number8Work order number (WS* or WM*)Status11O = Open, C/R = ClosedDate Opened14WO open dateDays Open15Age in daysDate Closed17WO close dateDays to Close18Cycle timeSold By21Service advisorParts Amount23Parts billingLabour Amount24Labour billingOther Amount25Other chargesTotal Amount26Total billingHours Reported36Reported hoursHours Billed37Billed hoursMake (Long)40Equipment makeModel (Long)42Equipment modelSerial43Serial numberWarranty Code55OEM warranty codeWarranty Name56OEM warranty name
 
----
+Updating the App
+When you receive an updated index.html:
 
-## Updating the App
+Go to the GitHub repo
+Click on index.html
+Click the pencil icon (Edit)
+Select All (Ctrl+A) → Delete → Paste new file contents
+Commit changes — deploys automatically within 60 seconds
 
-When you receive an updated `index.html` file:
-1. Go to your repository on GitHub
-2. Click on `index.html`
-3. Click the **pencil icon** (Edit) top right — or click the three dots → **Upload file**
-4. Upload the new file
-5. Commit the change — it deploys automatically within 60 seconds
 
----
+Reconciliation
+Closed DMS work orders automatically appear in the Reconciliation tab. The system flags:
 
-## User Roles & Default Access
+🔴 Missing OEM Claim # — Warranty Admin must enter the OEM portal claim number
+🟡 No Admin Notes — Add claim status notes for audit trail
 
-| Role | Name | Notes |
-|------|------|-------|
-| Technician | Andrew, Alex, John, Jared (HYD010) | |
-| Technician | Nate, Don, Tyler, Ed, Al, Logan, Caden (HYD020) | |
-| Warranty Admin | Andy | Full claim workflow |
-| Service Manager | Steve | HYD010 only |
-| Service Manager | Bill | HYD020 only |
-| Admin / Finance | Anne | Reconciliation only |
-| Management | (tap logo 3×) | Full access |
+Each row has inline entry for OEM claim numbers and an Add Note button. Once both are filled, the WO moves to Reconciliation History.
 
-**To add or edit users:** Log in as Management → Staff & Locations → Add User or Edit.
+Mobile Photo Upload
+Techs can upload warranty photos directly from their phone:
 
----
+Open the app → tap Upload Photos in the sidebar (or navigate to [app-url]#upload)
+Enter the Work Order number
+Tap each slot to take a photo with the phone camera
+Hit Save Photos to Claim
 
-## Current Version
+Photos stage in the browser and auto-attach when the claim is submitted from any device in the same session.
+Shareable link: Copy the #upload URL and text it to a tech — works on any phone without logging in.
 
-**v7** — Includes: role-based access, two-location support (HYD010/HYD020), Smartsheet WO integration, AI Three Cs review, part retention tracking, printable labels, closed claims archive, reconciliation history, analytics dashboard, warranty validity checks, OEM submission workflow.
+Production Upgrade Path
+This version runs entirely in the browser — all data resets on refresh. When you're ready to make data persistent:
+ServicePurposeCostSupabaseDatabase (replaces in-memory data)Free tierGoogle Drive APIPhoto/file storageFree (uses existing Drive)DMS APILive WO sync (replaces CSV)Depends on DMS vendor
+Estimated developer cost to wire up the backend: $300–600 on Upwork/Fiverr using this prototype as the full specification.
 
----
-
-## Production Upgrade Path
-
-This version runs entirely in the browser with no backend — all data resets on refresh. When you're ready to make data persistent across sessions and devices:
-
-| Service | Purpose | Cost |
-|---------|---------|------|
-| [Supabase](https://supabase.com) | Database (replaces in-memory data) | Free tier |
-| [Google Drive API](https://console.cloud.google.com) | Photo/file storage | Free (uses existing Drive) |
-| [Smartsheet API](https://smartsheet.com/developers) | Live WO sync | Included in Smartsheet plan |
-
-Estimated developer cost to wire up the backend: **$300–600 on Upwork/Fiverr** using this prototype as the full specification.
-
----
-
-## Support
-
-Built by Claude (Anthropic). For changes or issues, return to the Claude conversation and describe what needs updating.
+Support
+Built by Claude (Anthropic). For changes or issues, return to the Claude conversation with the project files attached and describe what needs updating.
