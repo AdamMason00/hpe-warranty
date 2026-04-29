@@ -1223,7 +1223,8 @@ var ADMIN_COMMENTS={};
 var CLAIM_EDIT_LOG={};
 
 // ── CSV LOADER ─────────────────────────────────────────────────────
-var CSV_URL='https://raw.githubusercontent.com/AdamMason00/hpe-warranty/main/Warranty%20Work%20Orders_20260428-193642.csv';
+var CSV_URL='./Warranty Work Orders_20260428-193642.csv';
+var CSV_URL_FALLBACK='https://raw.githubusercontent.com/AdamMason00/hpe-warranty/main/Warranty%20Work%20Orders_20260428-193642.csv';
 
 function oemFromCode(code,name){
   var c=(code||'').trim();var n=(name||'').toUpperCase();
@@ -1256,10 +1257,20 @@ function parseCSVLine(line){
 }
 
 async function loadCSVData(progress){
-  progress(20,'Downloading work order data...');
-  var resp=await fetch(CSV_URL,{cache:'no-cache'});
-  if(!resp.ok)throw new Error('HTTP '+resp.status+' - '+resp.statusText);
-  progress(55,'Parsing work orders...');
+  progress(15,'Connecting to work order data...');
+  var resp=null;
+  // Try relative URL first (same-origin, most reliable on GitHub Pages)
+  try{
+    resp=await fetch(CSV_URL,{cache:'no-cache'});
+    if(!resp.ok)resp=null;
+  }catch(e){resp=null;}
+  // Fallback to raw.githubusercontent.com
+  if(!resp){
+    progress(25,'Trying alternate source...');
+    resp=await fetch(CSV_URL_FALLBACK,{cache:'no-cache'});
+    if(!resp.ok)throw new Error('HTTP '+resp.status+' from both sources');
+  }
+  progress(45,'Parsing work orders...');
   var text=await resp.text();
   // Remove BOM
   if(text.charCodeAt(0)===0xFEFF)text=text.slice(1);
