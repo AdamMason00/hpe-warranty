@@ -1147,7 +1147,7 @@ async function doDirectLogin(){
     try{
       if(attempt===2)loadMsg.textContent='Retrying connection...';
       var timer=null;
-      var timeoutPromise=new Promise(function(_,reject){timer=setTimeout(function(){reject(new Error('Timeout'));},12000);});
+      var timeoutPromise=new Promise(function(_,reject){timer=setTimeout(function(){reject(new Error('Timeout'));},20000);});
       await Promise.race([
         loadCSVData(function(pct,msg){progBar.style.width=pct+'%';if(msg)loadMsg.textContent=msg;}),
         timeoutPromise
@@ -1270,8 +1270,9 @@ var ADMIN_COMMENTS={};
 var CLAIM_EDIT_LOG={};
 
 // ── CSV LOADER ─────────────────────────────────────────────────────
-var CSV_URL='./Warranty%20Work%20Orders_20260428-193642.csv';
-var CSV_URL_FALLBACK='https://raw.githubusercontent.com/AdamMason00/hpe-warranty/refs/heads/main/Warranty%20Work%20Orders_20260428-193642.csv';
+var CSV_URL='./warranty_data.csv';
+var CSV_URL_FALLBACK='https://raw.githubusercontent.com/AdamMason00/hpe-warranty/refs/heads/main/warranty_data.csv';
+var CSV_URL_FALLBACK2='https://raw.githubusercontent.com/AdamMason00/hpe-warranty/main/warranty_data.csv';
 
 function oemFromCode(code,name){
   var c=(code||'').trim();var n=(name||'').toUpperCase();
@@ -1306,22 +1307,18 @@ function parseCSVLine(line){
 async function loadCSVData(progress){
   progress(15,'Connecting to work order data...');
   var resp=null;
-  // Try relative URL first (same-origin on GitHub Pages)
-  try{
-    console.log('CSV: trying relative URL:',CSV_URL);
-    resp=await fetch(CSV_URL);
-    if(!resp.ok){console.warn('CSV relative failed:',resp.status);resp=null;}
-    else console.log('CSV: relative URL succeeded');
-  }catch(e){console.warn('CSV relative error:',e.message);resp=null;}
-  // Fallback to raw.githubusercontent.com
-  if(!resp){
-    progress(25,'Trying alternate source...');
-    console.log('CSV: trying fallback:',CSV_URL_FALLBACK);
-    resp=await fetch(CSV_URL_FALLBACK);
-    if(!resp.ok)throw new Error('Both URLs failed. Fallback HTTP '+resp.status);
-    console.log('CSV: fallback succeeded');
+  var urls=[CSV_URL, CSV_URL_FALLBACK, CSV_URL_FALLBACK2];
+  for(var u=0;u<urls.length;u++){
+    try{
+      console.log('CSV: trying URL '+(u+1)+'/'+urls.length+':',urls[u]);
+      progress(15+u*10,'Trying source '+(u+1)+'...');
+      resp=await fetch(urls[u]);
+      if(resp.ok){console.log('CSV: succeeded from source '+(u+1));break;}
+      else{console.warn('CSV: source '+(u+1)+' returned',resp.status);resp=null;}
+    }catch(e){console.warn('CSV: source '+(u+1)+' error:',e.message);resp=null;}
   }
-  progress(45,'Parsing work orders...');
+  if(!resp)throw new Error('All CSV sources failed');
+  progress(50,'Parsing work orders...');
   var text=await resp.text();
   // Remove BOM
   if(text.charCodeAt(0)===0xFEFF)text=text.slice(1);
