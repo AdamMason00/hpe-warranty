@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>HPE Warranty Management System v8</title>
+<title>HPE Warranty Management System v9</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -260,6 +260,8 @@ tr.clickable:hover td{background:#FFF3EC;cursor:pointer}
 .rchip.on.mgt{border-color:#B08000;background:#FFF8E0;color:#806000}
 .rchip.on.sa{border-color:#0891B2;background:#E0F7FA;color:#0E7490}
 .rp-sa{background:rgba(8,145,178,.25);color:#67E8F9}
+.rchip.on.sa{border-color:#0891B2;background:#E0F7FA;color:#0E7490}
+.rp-sa{background:rgba(8,145,178,.25);color:#67E8F9}
 .pin-overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:2000;display:flex;align-items:center;justify-content:center}
 .pin-box{background:var(--wh);border-radius:14px;padding:28px 26px;width:320px;text-align:center;box-shadow:0 24px 80px rgba(0,0,0,.5)}
 .pin-title{font-size:16px;font-weight:700;margin-bottom:6px}
@@ -417,6 +419,17 @@ tr.clickable:hover td{background:#FFF3EC;cursor:pointer}
 .pl-storage{background:var(--gbg);border-radius:5px;padding:5px 8px;margin-top:5px;font-size:10px;font-weight:600;text-align:center;border:1px solid var(--gbd)}
 .label-modal{background:var(--wh);border-radius:11px;width:440px;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.3)}
 
+.pin-overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:2000;display:flex;align-items:center;justify-content:center}
+.pin-box{background:var(--wh);border-radius:14px;padding:28px 26px;width:320px;text-align:center;box-shadow:0 24px 80px rgba(0,0,0,.5)}
+.pin-title{font-size:16px;font-weight:700;margin-bottom:6px}
+.pin-sub{font-size:11px;color:var(--gt);margin-bottom:18px}
+.pin-dots{display:flex;justify-content:center;gap:10px;margin-bottom:18px}
+.pin-dot{width:14px;height:14px;border-radius:50%;background:var(--gbd);transition:background .15s}
+.pin-dot.filled{background:var(--or)}
+.pin-pad{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px}
+.pin-key{height:46px;border:1.5px solid var(--gbd);border-radius:9px;font-size:18px;font-weight:700;cursor:pointer;background:var(--wh);font-family:var(--fn);transition:all .12s}
+.pin-key:hover{background:var(--orl);border-color:var(--or)}
+.pin-err{font-size:11px;color:var(--rd);min-height:18px;margin-top:4px}
 .mu-slot{background:#1A1A1A;border:2px solid #333;border-radius:10px;padding:14px;display:flex;align-items:center;gap:12px;position:relative;overflow:hidden;cursor:pointer;transition:border-color .15s}
 .mu-slot:hover{border-color:#555}
 .mu-slot.done{border-color:#22C55E;background:#0D1F0D}
@@ -430,6 +443,7 @@ tr.clickable:hover td{background:#FFF3EC;cursor:pointer}
 .mu-slot.done .mu-slot-sub{color:#16A34A}
 .mu-slot-thumb{width:48px;height:48px;border-radius:6px;object-fit:cover;flex-shrink:0;border:1px solid #333}
 .mu-required{font-size:8px;font-weight:700;background:var(--rd);color:#fff;padding:1px 5px;border-radius:3px;margin-left:6px}
+.ao-section-hdr{display:flex;align-items:center;justify-content:space-between;padding:10px 16px;background:var(--gbg);border-bottom:1px solid var(--gbd);cursor:pointer}
 .ao-section-hdr:hover{background:#EEEEE8}
 .ao-row{display:flex;align-items:flex-start;gap:10px;padding:11px 16px;border-bottom:1px solid var(--gbd);cursor:pointer;transition:background .12s}
 .ao-row:last-child{border-bottom:none}
@@ -565,8 +579,7 @@ tr.clickable:hover td{background:#FFF3EC;cursor:pointer}
   </div>
   <div class="t-flex"></div>
   <div style="display:flex;gap:5px;align-items:center">
-    <span class="ibadge ss">SS Connected</span>
-    <span class="ibadge gd">Drive Connected</span>
+    <span class="ibadge ss" id="data-loaded-badge" style="display:none">WO Data Loaded</span>
     <span id="loc-badge-top" style="display:none;font-size:9px;padding:2px 7px;border-radius:4px;font-weight:700"></span>
   </div>
   <div class="t-user" style="margin-left:8px">
@@ -623,7 +636,7 @@ tr.clickable:hover td{background:#FFF3EC;cursor:pointer}
 <!-- PENDING WORK ORDERS -->
 <div id="pg-wo" style="display:none">
   <div class="ph"><div><div class="pt">Pending Work Orders</div><div class="psub" id="wo-page-sub">Open warranty WOs — claim one to start</div></div>
-    <div style="display:flex;align-items:center;gap:8px"><span class="ibadge ss">SS Live</span><button class="btn b-gh" style="font-size:11px" onclick="showToast('Refreshing from Smartsheet...')">Refresh</button><button class="btn b-or" style="font-size:11px" onclick="nav('claim',document.getElementById('ni-nc'));setTimeout(function(){window._manualMode=true;ncCur=0;ncRender();},80)">+ Manual Claim</button></div>
+    <div style="display:flex;align-items:center;gap:8px"><button class="btn b-gh" style="font-size:11px" onclick="showToast('Refreshing work order data...')">Refresh</button><button class="btn b-or" style="font-size:11px" onclick="nav('claim',document.getElementById('ni-nc'));setTimeout(function(){window._manualMode=true;ncCur=0;ncRender();},80)">+ Manual Claim</button></div>
   </div>
   <div class="co">
     <div class="an ss">Open work orders loaded from your work order data. Claim one to pre-fill the form, or use Manual Entry.</div>
@@ -690,12 +703,22 @@ tr.clickable:hover td{background:#FFF3EC;cursor:pointer}
 
 <!-- RECONCILIATION -->
 <div id="pg-recon" style="display:none">
-  <div class="ph"><div><div class="pt">Invoice Reconciliation</div><div class="psub">Enter OEM credit amount and credit note reference</div></div><button class="btn b-or" onclick="showToast('Exported')">Export</button></div>
+  <div class="ph">
+    <div><div class="pt">Reconciliation</div><div class="psub">DMS closed WOs — enter OEM claim numbers and record credits</div></div>
+    <button class="btn b-or" onclick="showToast('Exported')">Export</button>
+  </div>
   <div class="co">
-    <div class="an gd">Google Drive: credit notes saved to Warranty Claims / Reconciliation /</div>
+    <div id="recon-alerts"></div>
+    <div class="sl2">DMS Closed WOs — Awaiting Reconciliation</div>
+    <div id="recon-dms-queue"></div>
+    <div class="sl2" style="margin-top:16px">In-App Claims — Pending OEM Credit Entry</div>
     <div id="recon-queue"></div>
-    <div class="tc"><div class="tc-h"><span class="tc-t">Reconciliation History</span></div>
-    <table><thead><tr><th>Claim #</th><th>OEM Claim #</th><th>OEM</th><th>OEM Code</th><th>Claim Amt</th><th>Credit (incl. HST)</th><th>Net to HPE</th><th>Variance</th><th>Closed Date</th><th>Status</th></tr></thead><tbody id="recon-history-body">
+    <div class="sl2" style="margin-top:16px">Reconciliation History</div>
+    <div class="tc"><div class="tc-h">
+      <span class="tc-t">Completed Reconciliations</span>
+      <input class="srch" placeholder="Search..." oninput="filterReconHistory(this.value)">
+    </div>
+    <table><thead><tr><th>WO #</th><th>OEM Claim #</th><th>OEM</th><th>Customer</th><th>Sold By</th><th>Total $</th><th>Parts $</th><th>Labour $</th><th>Closed</th><th>Status</th></tr></thead><tbody id="recon-history-body">
     </tbody></table></div>
   </div>
 </div>
@@ -790,33 +813,6 @@ tr.clickable:hover td{background:#FFF3EC;cursor:pointer}
 
 </div></div>
 
-<!-- MOBILE PHOTO UPLOADER - full screen, no login required -->
-<div id="pg-mobile-upload" style="display:none;position:fixed;inset:0;background:#111;z-index:900;overflow-y:auto">
-  <div style="max-width:480px;margin:0 auto;padding:16px">
-    <div style="display:flex;align-items:center;gap:10px;margin-bottom:18px;padding-bottom:14px;border-bottom:1px solid #333">
-      <div style="width:36px;height:36px;background:var(--or);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#fff;flex-shrink:0">HPE</div>
-      <div><div style="font-size:14px;font-weight:700;color:#fff">Photo Upload</div><div style="font-size:10px;color:#888">Hyde Park Equipment - Warranty</div></div>
-      <button onclick="closeMobileUpload()" style="margin-left:auto;background:#333;border:none;color:#aaa;width:32px;height:32px;border-radius:6px;font-size:16px;cursor:pointer">&#10005;</button>
-    </div>
-    <div style="margin-bottom:16px">
-      <div style="font-size:10px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Work Order Number</div>
-      <input id="mu-wo" type="text" placeholder="e.g. WS19383" style="width:100%;height:48px;background:#222;border:2px solid #444;border-radius:8px;color:#fff;font-size:16px;font-family:Inter,sans-serif;padding:0 14px;outline:none;font-family:monospace;letter-spacing:.05em" oninput="muCheckStaged()" autocomplete="off" autocorrect="off" autocapitalize="characters">
-      <div id="mu-staged-note" style="font-size:11px;color:#22C55E;margin-top:5px;min-height:16px"></div>
-    </div>
-    <div style="font-size:10px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">Required Photos (5)</div>
-    <div id="mu-slots" style="display:flex;flex-direction:column;gap:10px;margin-bottom:16px"></div>
-    <div style="font-size:10px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">Additional Photos (Optional)</div>
-    <div id="mu-extra-slots" style="display:flex;flex-direction:column;gap:10px;margin-bottom:16px"></div>
-    <button onclick="muAddExtra()" style="width:100%;height:44px;background:#222;border:2px dashed #444;border-radius:8px;color:#888;font-size:13px;font-weight:600;cursor:pointer;font-family:Inter,sans-serif;margin-bottom:16px">+ Add Another Photo</button>
-    <button onclick="muSaveStaged()" id="mu-save-btn" style="width:100%;height:52px;background:var(--or);border:none;border-radius:10px;color:#fff;font-size:15px;font-weight:700;cursor:pointer;font-family:Inter,sans-serif">Save Photos to Claim</button>
-    <div id="mu-result" style="margin-top:12px;text-align:center;font-size:12px;color:#aaa;min-height:20px"></div>
-    <div style="margin-top:18px;padding-top:14px;border-top:1px solid #333;font-size:10px;color:#555;text-align:center;line-height:1.7">
-      Photos are saved to this device session and will attach automatically when the claim is submitted from the desktop.<br>
-      <strong style="color:#777">Share link:</strong> Tap and hold the address bar to copy and send this link to a tech.
-    </div>
-  </div>
-</div>
-
 <!-- MODALS -->
 <div class="modal-ov" id="oem-modal"><div class="modal">
   <div class="modal-h"><div><div class="modal-t" id="oem-modal-t">OEM Claim Details</div><div style="font-size:10px;color:#aaa;margin-top:2px" id="oem-modal-s"></div></div><button class="modal-cb" onclick="closeModal('oem-modal')">X</button></div>
@@ -843,7 +839,7 @@ tr.clickable:hover td{background:#FFF3EC;cursor:pointer}
 
 <!-- WARRANTY REVIEW (Andy only) -->
 <div id="pg-wo-review" style="display:none">
-  <div class="ph"><div><div class="pt">Warranty Work Order Review</div><div class="psub">Confirm warranty validity before techs claim work orders</div></div><span class="ibadge ss">SS Live</span></div>
+  <div class="ph"><div><div class="pt">Warranty Work Order Review</div><div class="psub">Confirm warranty validity before techs claim work orders</div></div></div>
   <div class="co">
     <div class="an bl">Review each new work order and set its warranty status. Techs and service managers see your review badge before claiming.</div>
     <div id="wo-review-list"></div>
@@ -891,7 +887,7 @@ tr.clickable:hover td{background:#FFF3EC;cursor:pointer}
 
 <!-- OPEN & UNASSIGNED CLAIMS (Admin) -->
 <div id="pg-unassigned" style="display:none">
-  <div class="ph"><div><div class="pt">Open &amp; Unassigned Claims</div><div class="psub">Work orders not yet claimed by a technician</div></div><span class="ibadge ss">SS Live</span></div>
+  <div class="ph"><div><div class="pt">Open &amp; Unassigned Claims</div><div class="psub">Work orders not yet claimed by a technician</div></div></div>
   <div class="co">
     <div class="an bl">Open work orders with no technician assigned. Review for warranty validity before techs claim them.</div>
     <div id="unassigned-list"></div>
@@ -907,6 +903,70 @@ tr.clickable:hover td{background:#FFF3EC;cursor:pointer}
   </div>
 </div>
 
+
+<!-- PIN MODAL -->
+<div class="pin-overlay" id="pin-overlay" style="display:none">
+  <div class="pin-box">
+    <div class="pin-title">Management Access</div>
+    <div class="pin-sub">Enter your 4-digit PIN to continue</div>
+    <div class="pin-dots" id="pin-dots">
+      <div class="pin-dot" id="pd0"></div><div class="pin-dot" id="pd1"></div>
+      <div class="pin-dot" id="pd2"></div><div class="pin-dot" id="pd3"></div>
+    </div>
+    <div class="pin-pad">
+      <button class="pin-key" onclick="pinKey('1')">1</button>
+      <button class="pin-key" onclick="pinKey('2')">2</button>
+      <button class="pin-key" onclick="pinKey('3')">3</button>
+      <button class="pin-key" onclick="pinKey('4')">4</button>
+      <button class="pin-key" onclick="pinKey('5')">5</button>
+      <button class="pin-key" onclick="pinKey('6')">6</button>
+      <button class="pin-key" onclick="pinKey('7')">7</button>
+      <button class="pin-key" onclick="pinKey('8')">8</button>
+      <button class="pin-key" onclick="pinKey('9')">9</button>
+      <button class="pin-key" style="font-size:13px" onclick="pinClear()">&#9003;</button>
+      <button class="pin-key" onclick="pinKey('0')">0</button>
+      <button class="pin-key" style="font-size:13px;background:var(--gbg)" onclick="pinCancel()">&#10005;</button>
+    </div>
+    <div class="pin-err" id="pin-err"></div>
+  </div>
+</div>
+<!-- CSV LOADING OVERLAY -->
+<div class="pin-overlay" id="csv-loading" style="display:none">
+  <div class="pin-box">
+    <div style="font-size:28px;margin-bottom:12px">&#128203;</div>
+    <div class="pin-title">Loading Work Orders</div>
+    <div class="pin-sub" id="csv-load-msg">Fetching work order data...</div>
+    <div style="height:4px;background:var(--gbg);border-radius:2px;margin-top:14px;overflow:hidden">
+      <div id="csv-progress" style="height:100%;background:var(--or);border-radius:2px;width:0%;transition:width .4s"></div>
+    </div>
+  </div>
+</div>
+<!-- MOBILE PHOTO UPLOADER -->
+<div id="pg-mobile-upload" style="display:none;position:fixed;inset:0;background:#111;z-index:900;overflow-y:auto">
+  <div style="max-width:480px;margin:0 auto;padding:16px">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:18px;padding-bottom:14px;border-bottom:1px solid #333">
+      <div style="width:36px;height:36px;background:var(--or);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#fff;flex-shrink:0">HPE</div>
+      <div><div style="font-size:14px;font-weight:700;color:#fff">Photo Upload</div><div style="font-size:10px;color:#888">Hyde Park Equipment — Warranty</div></div>
+      <button onclick="closeMobileUpload()" style="margin-left:auto;background:#333;border:none;color:#aaa;width:32px;height:32px;border-radius:6px;font-size:16px;cursor:pointer">&#10005;</button>
+    </div>
+    <div style="margin-bottom:16px">
+      <div style="font-size:10px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Work Order Number</div>
+      <input id="mu-wo" type="text" placeholder="e.g. WS19383" style="width:100%;height:48px;background:#222;border:2px solid #444;border-radius:8px;color:#fff;font-size:16px;padding:0 14px;outline:none;font-family:monospace;letter-spacing:.05em;box-sizing:border-box" oninput="muCheckStaged()" autocomplete="off" autocapitalize="characters">
+      <div id="mu-staged-note" style="font-size:11px;color:#22C55E;margin-top:5px;min-height:16px"></div>
+    </div>
+    <div style="font-size:10px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">Required Photos (5)</div>
+    <div id="mu-slots" style="display:flex;flex-direction:column;gap:10px;margin-bottom:16px"></div>
+    <div style="font-size:10px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">Additional Photos (Optional)</div>
+    <div id="mu-extra-slots" style="display:flex;flex-direction:column;gap:10px;margin-bottom:16px"></div>
+    <button onclick="muAddExtra()" style="width:100%;height:44px;background:#222;border:2px dashed #444;border-radius:8px;color:#888;font-size:13px;font-weight:600;cursor:pointer;font-family:Inter,sans-serif;margin-bottom:16px">+ Add Another Photo</button>
+    <button onclick="muSaveStaged()" style="width:100%;height:52px;background:var(--or);border:none;border-radius:10px;color:#fff;font-size:15px;font-weight:700;cursor:pointer;font-family:Inter,sans-serif">Save Photos to Claim</button>
+    <div id="mu-result" style="margin-top:12px;text-align:center;font-size:12px;color:#aaa;min-height:20px"></div>
+    <div style="margin-top:18px;padding-top:14px;border-top:1px solid #333;font-size:10px;color:#555;text-align:center;line-height:1.7">
+      Photos stage here and attach automatically when the claim is submitted.<br>
+      <strong style="color:#777">Share:</strong> Copy this page URL and send to a tech — works on any phone.
+    </div>
+  </div>
+</div>
 <div class="toast" id="toast"></div>
 
 <!-- PIN MODAL -->
@@ -978,6 +1038,7 @@ function getTechLocation(t,prefer){
   return LOCATIONS.HYD010.techs.includes(t)?'HYD010':LOCATIONS.HYD020.techs.includes(t)?'HYD020':'';
 }
 function getMgrLocation(m){return m==='Steve'?'HYD010':m==='Bill'?'HYD020':'';}
+function getSALocation(n){return n==='Stew'?'HYD010':n==='Bryan'?'HYD020':'';}
 function getSALocation(n){return n==='Stew'?'HYD010':n==='Bryan'?'HYD020':'';}
 function getMgrForTech(t){var l=getTechLocation(t);return l&&LOCATIONS[l]?LOCATIONS[l].mgr:'';}
 function getClaim(id){return CLAIMS.find(function(c){return c.id===id;});}
@@ -1082,7 +1143,6 @@ async function doDirectLogin(){
   loadMsg.textContent='Loading work order data...';
   progBar.style.width='10%';
   var success=false;
-  // Try up to 2 times with a 12 second timeout each
   for(var attempt=1;attempt<=2;attempt++){
     try{
       if(attempt===2)loadMsg.textContent='Retrying connection...';
@@ -1092,50 +1152,36 @@ async function doDirectLogin(){
         loadCSVData(function(pct,msg){progBar.style.width=pct+'%';if(msg)loadMsg.textContent=msg;}),
         timeoutPromise
       ]);
-      clearTimeout(timer);
-      success=true;
-      break;
+      clearTimeout(timer);success=true;break;
     }catch(e){
       clearTimeout(timer);
-      if(attempt<2){
-        loadMsg.textContent='Connection slow - retrying...';
-        progBar.style.width='5%';
-        await new Promise(function(r){setTimeout(r,1000);});
-      }
+      if(attempt<2){loadMsg.textContent='Connection slow - retrying...';progBar.style.width='5%';await new Promise(function(r){setTimeout(r,1000);});}
     }
   }
   if(!success){
-    // Show error with option to continue without data or retry
-    progBar.style.background='var(--rd)';
-    progBar.style.width='100%';
+    progBar.style.background='var(--rd)';progBar.style.width='100%';
     loadMsg.innerHTML='Could not load work order data.<br><span style="font-size:10px">Check your internet connection.</span>';
-    // Add retry / continue buttons
-    var btnWrap=document.createElement('div');
-    btnWrap.style.cssText='display:flex;gap:8px;margin-top:14px;justify-content:center';
-    btnWrap.innerHTML=
-      '<button onclick="document.getElementById(\'csv-loading\').style.display=\'none\';doDirectLogin()" style="padding:8px 16px;background:var(--or);color:#fff;border:none;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;font-family:Inter,sans-serif">Retry</button>'+
+    var btnWrap=document.createElement('div');btnWrap.style.cssText='display:flex;gap:8px;margin-top:14px;justify-content:center';
+    btnWrap.innerHTML='<button onclick="document.getElementById(\'csv-loading\').style.display=\'none\';doDirectLogin()" style="padding:8px 16px;background:var(--or);color:#fff;border:none;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;font-family:Inter,sans-serif">Retry</button>'+
       '<button onclick="document.getElementById(\'csv-loading\').style.display=\'none\';completeLoginDirect(\''+name+'\')" style="padding:8px 16px;background:#333;color:#aaa;border:none;border-radius:7px;font-size:12px;cursor:pointer;font-family:Inter,sans-serif">Continue without data</button>';
-    var box=loadDiv.querySelector('.pin-box');
-    // Remove old buttons if any
-    var old=box.querySelector('.csv-btn-wrap');if(old)old.remove();
-    btnWrap.className='csv-btn-wrap';
-    box.appendChild(btnWrap);
-    return; // Don't auto-proceed
+    var box=loadDiv.querySelector('.pin-box');var old=box.querySelector('.csv-btn-wrap');if(old)old.remove();
+    btnWrap.className='csv-btn-wrap';box.appendChild(btnWrap);
+    return;
   }
+  var dlb=document.getElementById('data-loaded-badge');if(dlb)dlb.style.display='inline-flex';
   loadDiv.style.display='none';
   completeLogin(name);
 }
 function completeLoginDirect(name){
-  // Login with empty data (no CSV)
   document.getElementById('csv-loading').style.display='none';
-  completeLogin(name);
-  showToast('Logged in - no work order data loaded');
+  completeLogin(name);showToast('Logged in - no work order data loaded');
 }
 
 function completeLogin(name){
   var loc='';
   if(CR==='tech')loc=getTechLocation(name);
   else if(CR==='mgr')loc=getMgrLocation(name);
+  else if(CR==='sa')loc=getSALocation(name);
   else if(CR==='sa')loc=getSALocation(name);
   CU={name:name,role:CR,init:name.slice(0,2).toUpperCase(),loc:loc};
   document.getElementById('lo').style.display='none';
@@ -1166,6 +1212,7 @@ function setupUI(){
   var lb=document.getElementById('loc-badge-top');
   if(CU.loc){lb.style.display='inline-flex';lb.textContent=CU.loc;lb.className='ibadge '+(CU.loc==='HYD010'?'ss':'gd');}
   else lb.style.display='none';
+  var isSA=CU.role==='sa';
   var isSA=CU.role==='sa';
   var isAdm=['admin','mgr','finance','mgmt'].includes(CU.role);
   var isMgr=['mgr','mgmt'].includes(CU.role);
@@ -1223,8 +1270,8 @@ var ADMIN_COMMENTS={};
 var CLAIM_EDIT_LOG={};
 
 // ── CSV LOADER ─────────────────────────────────────────────────────
-var CSV_URL='./Warranty Work Orders_20260428-193642.csv';
-var CSV_URL_FALLBACK='https://raw.githubusercontent.com/AdamMason00/hpe-warranty/main/Warranty%20Work%20Orders_20260428-193642.csv';
+var CSV_URL='./Warranty%20Work%20Orders_20260428-193642.csv';
+var CSV_URL_FALLBACK='https://raw.githubusercontent.com/AdamMason00/hpe-warranty/refs/heads/main/Warranty%20Work%20Orders_20260428-193642.csv';
 
 function oemFromCode(code,name){
   var c=(code||'').trim();var n=(name||'').toUpperCase();
@@ -1259,16 +1306,20 @@ function parseCSVLine(line){
 async function loadCSVData(progress){
   progress(15,'Connecting to work order data...');
   var resp=null;
-  // Try relative URL first (same-origin, most reliable on GitHub Pages)
+  // Try relative URL first (same-origin on GitHub Pages)
   try{
-    resp=await fetch(CSV_URL,{cache:'no-cache'});
-    if(!resp.ok)resp=null;
-  }catch(e){resp=null;}
+    console.log('CSV: trying relative URL:',CSV_URL);
+    resp=await fetch(CSV_URL);
+    if(!resp.ok){console.warn('CSV relative failed:',resp.status);resp=null;}
+    else console.log('CSV: relative URL succeeded');
+  }catch(e){console.warn('CSV relative error:',e.message);resp=null;}
   // Fallback to raw.githubusercontent.com
   if(!resp){
     progress(25,'Trying alternate source...');
-    resp=await fetch(CSV_URL_FALLBACK,{cache:'no-cache'});
-    if(!resp.ok)throw new Error('HTTP '+resp.status+' from both sources');
+    console.log('CSV: trying fallback:',CSV_URL_FALLBACK);
+    resp=await fetch(CSV_URL_FALLBACK);
+    if(!resp.ok)throw new Error('Both URLs failed. Fallback HTTP '+resp.status);
+    console.log('CSV: fallback succeeded');
   }
   progress(45,'Parsing work orders...');
   var text=await resp.text();
@@ -1287,7 +1338,7 @@ async function loadCSVData(progress){
     var cols=parseCSVLine(lines[i]);
     if(cols.length<20)continue;
     var division=cols[0]||'';
-    // WO prefix is authoritative: WS* = HYD010, WM* = HYD020
+    // WO prefix is authoritative: WS*=HYD010, WM*=HYD020
     var loc=docNum.startsWith('WM')?'HYD020':'HYD010';
     var docNum=(cols[8]||'').trim();
     if(!docNum)continue;
@@ -1314,14 +1365,9 @@ async function loadCSVData(progress){
     var partsAmt=parseFloat((cols[23]||'0').replace(/[^0-9.-]/g,''))||0;
     var labourAmt=parseFloat((cols[24]||'0').replace(/[^0-9.-]/g,''))||0;
     var otherAmt=parseFloat((cols[25]||'0').replace(/[^0-9.-]/g,''))||0;
-    var partsAmt=parseFloat((cols[23]||'0').replace(/[^0-9.-]/g,''))||0;
-    var labourAmt=parseFloat((cols[24]||'0').replace(/[^0-9.-]/g,''))||0;
-    var otherAmt=parseFloat((cols[25]||'0').replace(/[^0-9.-]/g,''))||0;
     var totalAmt=parseFloat((cols[26]||'0').replace(/[^0-9.-]/g,''))||0;
-    var hrsReported=parseFloat((cols[36]||'0').replace(/[^0-9:-]/g,'').split(':')[0])||0;
-    var hrsBilled=parseFloat((cols[37]||'0').replace(/[^0-9:-]/g,'').split(':')[0])||0;
-    var hrsReported=parseFloat((cols[36]||'0').replace(/[^0-9.-]/g,''))||0;
-    var hrsBilled=parseFloat((cols[37]||'0').replace(/[^0-9.-]/g,''))||0;
+    var hrsReported=parseFloat((cols[36]||'0').replace(/[^0-9.]/g,'')||'0')||0;
+    var hrsBilled=parseFloat((cols[37]||'0').replace(/[^0-9.]/g,'')||'0')||0;
     var makeLong=(cols[40]||'').trim();
     var modelLong=(cols[42]||'').trim();
     var serial=(cols[43]||'').trim();
@@ -1344,8 +1390,7 @@ async function loadCSVData(progress){
         paid:false,
         loc:loc,
         soldBy:soldBy,
-        amount:totalAmt,partsAmt:partsAmt,labourAmt:labourAmt,otherAmt:otherAmt,
-        hrsReported:hrsReported,hrsBilled:hrsBilled,
+        amount:totalAmt,partsAmt:partsAmt,labourAmt:labourAmt,otherAmt:otherAmt,hrsReported:hrsReported,hrsBilled:hrsBilled,
         ageDays:daysOpen,
         woReview:'',
         woReviewNote:''
@@ -1362,9 +1407,10 @@ async function loadCSVData(progress){
         loc:loc,
         oemClaimNum:'',
         recovered:totalAmt,claimAmt:totalAmt,
-        partsAmt:partsAmt,labourAmt:labourAmt,otherAmt:otherAmt,
-        hrsReported:hrsReported,hrsBilled:hrsBilled,
-        closedDate:dateClosed,dateOpened:dateOpened,daysToClose:daysToClose,
+        partsAmt:partsAmt,labourAmt:labourAmt,otherAmt:otherAmt,hrsReported:hrsReported,hrsBilled:hrsBilled,
+        closedDate:dateClosed,
+        dateOpened:dateOpened,
+        daysToClose:daysToClose,
         partRemoved:'',
         partStorage:'',
         disposeDate:'',
@@ -1384,6 +1430,7 @@ async function loadCSVData(progress){
   ARCHIVE_CLAIMS.sort(function(a,b){return b.id.localeCompare(a.id);});
 
   progress(90,'Building analytics...');
+  console.log('CSV loaded:',SS_WOS.length,'open WOs,',ARCHIVE_CLAIMS.length,'closed WOs');
   // Rebuild OEM_DATA from parsed data
   buildOEMData();
   progress(100,'Ready');
@@ -1740,15 +1787,73 @@ function renderTaskList(){
   tc.innerHTML='<div class="sl2">Open Tasks ('+tasks.length+')</div>'+tasks.map(function(t){return'<div style="background:var(--wh);border:1px solid var(--gbd);border-radius:8px;padding:11px 14px;margin-bottom:8px;display:flex;align-items:flex-start;gap:10px;cursor:pointer" onclick="'+t.action+'"><div style="width:8px;height:8px;border-radius:50%;flex-shrink:0;margin-top:4px;background:var(--'+t.type+')"></div><div style="flex:1"><div style="font-size:12px;font-weight:600">'+t.title+'</div><div style="font-size:10px;color:var(--gt)">'+t.sub+'</div></div><div style="font-size:16px;color:var(--gl)">&#8250;</div></div>';}).join('');
 }
 
+function renderReconDMSQueue(){
+  var el=document.getElementById('recon-dms-queue');if(!el)return;
+  var alertEl=document.getElementById('recon-alerts');
+  var reconItems=ARCHIVE_CLAIMS.filter(function(c){
+    var mo=!c.oemClaimNum||c.oemClaimNum.trim()==='';
+    var ma=!c.adminComments||c.adminComments.length===0;
+    return mo||ma;
+  });
+  var missingOEM=ARCHIVE_CLAIMS.filter(function(c){return!c.oemClaimNum||c.oemClaimNum.trim()==='';}).length;
+  var missingAdmin=ARCHIVE_CLAIMS.filter(function(c){return!c.adminComments||c.adminComments.length===0;}).length;
+  if(alertEl){
+    var ah='';
+    if(missingOEM>0)ah+='<div class="an danger"><strong>'+missingOEM+' closed WO(s) missing OEM warranty claim number</strong> — enter claim # below.</div>';
+    if(missingAdmin>0)ah+='<div class="an warn"><strong>'+missingAdmin+' closed WO(s) have no warranty admin notes</strong> — add notes for reconciliation.</div>';
+    if(!missingOEM&&!missingAdmin)ah='<div class="an ss">All closed DMS work orders have OEM claim numbers and admin notes.</div>';
+    alertEl.innerHTML=ah;
+  }
+  if(!reconItems.length){el.innerHTML='<div class="an ss">All closed DMS work orders are reconciled.</div>';return;}
+  el.innerHTML='<div class="tc" style="margin-bottom:10px"><div class="tc-h" style="background:#FFF8F0">'+
+    '<span class="tc-t" style="color:var(--or)">'+reconItems.length+' WOs Requiring Attention</span>'+
+    '<input class="srch" placeholder="Search..." oninput="filterReconDMS(this.value)">'+
+    '<button class="fb on" id="rdms-all" onclick="filterReconDMSType(&quot;all&quot;,this)">All</button>'+
+    '<button class="fb" id="rdms-oem" onclick="filterReconDMSType(&quot;oem&quot;,this)">Missing Claim #</button>'+
+    '<button class="fb" id="rdms-admin" onclick="filterReconDMSType(&quot;admin&quot;,this)">No Notes</button>'+
+  '</div>'+
+  '<table><thead><tr><th>WO #</th><th>Customer</th><th>Equipment</th><th>OEM</th><th>Sold By</th><th>Value</th><th>Closed</th><th>OEM Claim #</th><th>Flags</th><th>Actions</th></tr></thead>'+
+  '<tbody id="recon-dms-body">'+renderReconDMSRows(reconItems)+'</tbody></table></div>';
+}
+function renderReconDMSRows(items){
+  return items.map(function(c){
+    var mo=!c.oemClaimNum||c.oemClaimNum.trim()==='';
+    var ma=!c.adminComments||c.adminComments.length===0;
+    var flags=(mo?'<span class="part-dispose" style="font-size:9px;margin-right:3px">Missing OEM #</span>':'')+(ma?'<span class="part-warn" style="font-size:9px">No Notes</span>':'');
+    var bg=mo?'background:#FFF5F5':ma?'background:#FFFBF0':'';
+    return'<tr style="'+bg+'" id="rdms-row-'+c.id+'">'+
+      '<td onclick="openArchiveDP(&quot;'+c.id+'&quot;)"><span class="cid">'+c.id+'</span></td>'+
+      '<td onclick="openArchiveDP(&quot;'+c.id+'&quot;)">'+c.cust+'</td>'+
+      '<td onclick="openArchiveDP(&quot;'+c.id+'&quot;)"><div class="en">'+c.en+'</div></td>'+
+      '<td>'+c.oem+'</td>'+
+      '<td style="font-size:10px;color:var(--gt)">'+(c.soldBy||'-')+'</td>'+
+      '<td style="font-weight:600">$'+(c.recovered||c.claimAmt||0).toLocaleString()+'</td>'+
+      '<td style="font-size:10px;color:var(--gt)">'+(c.closedDate||'-')+'</td>'+
+      '<td style="max-width:130px"><input class="fi" id="rdms-oem-'+c.id+'" value="'+(c.oemClaimNum||'')+'" placeholder="e.g. C1494820" style="font-family:monospace;height:27px;font-size:11px;border-color:'+(mo?'var(--rd)':'var(--gbd)')+'"></td>'+
+      '<td>'+flags+'</td>'+
+      '<td onclick="event.stopPropagation()"><div style="display:flex;flex-direction:column;gap:3px">'+
+        '<button class="btn b-or" style="font-size:9px;padding:3px 7px;white-space:nowrap" onclick="saveDMSOEMNum(&quot;'+c.id+'&quot;)">Save #</button>'+
+        '<button class="btn b-bl" style="font-size:9px;padding:3px 7px;white-space:nowrap" onclick="openDMSNote(&quot;'+c.id+'&quot;)">Add Note</button>'+
+      '</div></td>'+
+    '</tr>';
+  }).join('');
+}
+function filterReconDMS(q){var f=q.toLowerCase();var items=ARCHIVE_CLAIMS.filter(function(c){var mo=!c.oemClaimNum||c.oemClaimNum.trim()==='';var ma=!c.adminComments||c.adminComments.length===0;if(!mo&&!ma)return false;return c.id.toLowerCase().includes(f)||c.cust.toLowerCase().includes(f)||c.oem.toLowerCase().includes(f)||(c.soldBy||'').toLowerCase().includes(f);});var tb=document.getElementById('recon-dms-body');if(tb)tb.innerHTML=renderReconDMSRows(items);}
+function filterReconDMSType(type,btn){document.querySelectorAll('#rdms-all,#rdms-oem,#rdms-admin').forEach(function(b){b.classList.remove('on');});if(btn)btn.classList.add('on');var items=ARCHIVE_CLAIMS.filter(function(c){var mo=!c.oemClaimNum||c.oemClaimNum.trim()==='';var ma=!c.adminComments||c.adminComments.length===0;if(type==='oem')return mo;if(type==='admin')return ma;return mo||ma;});var tb=document.getElementById('recon-dms-body');if(tb)tb.innerHTML=renderReconDMSRows(items);}
+function saveDMSOEMNum(id){var inp=document.getElementById('rdms-oem-'+id);if(!inp||!inp.value.trim()){showToast('Enter an OEM claim number first');return;}var c=ARCHIVE_CLAIMS.find(function(x){return x.id===id;});if(!c)return;c.oemClaimNum=inp.value.trim();inp.style.borderColor='var(--gn)';showToast('OEM claim # saved for '+id);setTimeout(renderReconDMSQueue,300);}
+function openDMSNote(id){var c=ARCHIVE_CLAIMS.find(function(x){return x.id===id;});window._commentClaimId=id;document.getElementById('notes-modal-s').textContent='Add note to '+id+(c?' - '+c.cust:'');var existing=document.getElementById('existing-notes');var coms=c&&c.adminComments?c.adminComments:[];existing.innerHTML=coms.length?coms.map(function(cm){return'<div class="admin-comment"><div class="admin-comment-hd">'+cm.date+'</div><div class="admin-comment-txt">'+cm.text+'</div></div>';}).join(''):'<div style="font-size:11px;color:var(--gl);font-style:italic">No notes yet.</div>';document.getElementById('new-note').value='';document.getElementById('notes-modal').classList.add('open');}
+
 function renderReconQueue(){
   if(!CU)return;
   var el=document.getElementById('recon-queue');if(!el)return;
   if(CU&&CU.role!=='finance'&&CU.role!=='mgmt'){el.innerHTML='';return;}
   var pending=CLAIMS.filter(function(c){return c.s==='pay';});
-  if(!pending.length){el.innerHTML='<div class="an gd">No claims currently pending payment entry.</div>';return;}
+  if(!pending.length){el.innerHTML='<div class="an ss">No in-app claims currently pending OEM credit entry.</div>';return;}
   el.innerHTML=pending.map(function(c){
-    var woFlag=c.woOpen?'<div class="an warn">Work order '+c.woId+' still open  -  please close once reconciliation is complete.</div>':'';
-    return'<div class="fc"><div class="fct"><div class="fn2">$</div>Record Credit  -  '+c.id+' &middot; '+c.oem+' ('+c.oemCode+') '+c.en+'</div>'+woFlag+'<div class="an bl">Claim amount pre-filled. Enter OEM credit and credit note reference only.</div><div class="cg cg3"><div class="fg"><label class="fl2">Claim Amount <span class="ptag">PRE-FILLED</span></label><input class="fi fi-pre" value="$'+c.claimAmt.toFixed(2)+'" readonly></div><div class="fg"><label class="fl2">OEM Credit (excl. HST) *</label><input class="fi" id="cr-'+c.id+'" type="number" placeholder="0.00" oninput="calcCredit(\''+c.id+'\')"></div><div class="fg"><label class="fl2">OEM Credit Note # *</label><input class="fi" id="cn-'+c.id+'" placeholder="Credit note reference"></div></div><div class="fg"><label class="fl2">OEM Credit (incl. HST 13%) <span class="atag">AUTO</span></label><input class="fi fi-au" id="cri-'+c.id+'" readonly style="max-width:200px"></div><div class="fg"><label class="fl2">Net Cost to HPE <span class="atag">AUTO</span></label><input class="fi fi-au" id="net-'+c.id+'" readonly style="max-width:200px"></div><div class="rr2 rr-em" id="rr-'+c.id+'">Enter OEM credit to calculate</div><div style="margin-top:9px;display:flex;gap:6px"><button class="btn b-or" onclick="saveCredit(\''+c.id+'\')">Save & Mark Paid</button><button class="btn b-gh" onclick="openDP(\''+c.id+'\')">View Claim</button></div></div>';
+    var mo=!c.oemClaimNum||c.oemClaimNum.trim()==='';
+    var woFlag=c.woOpen?'<div class="an warn">Work order '+c.woId+' still open in DMS.</div>':'';
+    var oemFlag=mo?'<div class="an danger">No OEM claim number — Warranty Admin must enter before credit is applied.</div>':'';
+    return'<div class="fc" style="border-left:4px solid '+(mo?'var(--rd)':'var(--or)')+'"><div class="fct"><div class="fn2">$</div>Record Credit — '+c.id+' · '+c.oem+' ('+c.oemCode+') · '+c.en+'</div>'+woFlag+oemFlag+'<div class="an bl" style="margin-bottom:8px">Enter the OEM credit and credit note reference to close this claim.</div><div class="fr2"><div class="fg"><label class="fl2">OEM Claim # <span class="rq">*</span></label><input class="fi" id="oem-num-'+c.id+'" value="'+(c.oemClaimNum||'')+'" placeholder="e.g. C1494820" style="font-family:monospace"></div><div class="fg"><label class="fl2">Claim Amount <span class="ptag">PRE-FILLED</span></label><input class="fi fi-pre" value="$'+c.claimAmt.toFixed(2)+'" readonly></div></div><div class="cg cg3"><div class="fg"><label class="fl2">Claim Amount <span class="ptag">PRE-FILLED</span></label><input class="fi fi-pre" value="$'+c.claimAmt.toFixed(2)+'" readonly></div><div class="fg"><label class="fl2">OEM Credit (excl. HST) *</label><input class="fi" id="cr-'+c.id+'" type="number" placeholder="0.00" oninput="calcCredit(\''+c.id+'\')"></div><div class="fg"><label class="fl2">OEM Credit Note # *</label><input class="fi" id="cn-'+c.id+'" placeholder="Credit note reference"></div></div><div class="fg"><label class="fl2">OEM Credit (incl. HST 13%) <span class="atag">AUTO</span></label><input class="fi fi-au" id="cri-'+c.id+'" readonly style="max-width:200px"></div><div class="fg"><label class="fl2">Net Cost to HPE <span class="atag">AUTO</span></label><input class="fi fi-au" id="net-'+c.id+'" readonly style="max-width:200px"></div><div class="rr2 rr-em" id="rr-'+c.id+'">Enter OEM credit to calculate</div><div style="margin-top:9px;display:flex;gap:6px"><button class="btn b-or" onclick="saveCredit(\''+c.id+'\')">Save & Mark Paid</button><button class="btn b-gh" onclick="openDP(\''+c.id+'\')">View Claim</button></div></div>';
   }).join('');
 }
 function calcCredit(id){var cr=parseFloat(document.getElementById('cr-'+id)?document.getElementById('cr-'+id).value:0)||0;var c=getClaim(id);if(!c)return;var crI=cr*1.13;var net=c.claimAmt-crI;var criEl=document.getElementById('cri-'+id);var netEl=document.getElementById('net-'+id);if(criEl)criEl.value=cr>0?crI.toFixed(2):'';if(netEl)netEl.value=cr>0?net.toFixed(2):'';var rr=document.getElementById('rr-'+id);if(!rr)return;if(!cr){rr.className='rr2 rr-em';rr.textContent='Enter OEM credit to calculate';return;}var pct=(net/c.claimAmt)*100;if(pct<=0){rr.className='rr2 rr-ok';rr.textContent='Full recovery.';}else if(pct>10){rr.className='rr2 rr-flag';rr.textContent='FLAG: '+pct.toFixed(1)+'% loss exceeds 10%. Net loss $'+Math.abs(net).toFixed(2);}else{rr.className='rr2 rr-ok';rr.textContent='Acceptable: '+pct.toFixed(1)+'% variance';}}
@@ -1759,6 +1864,7 @@ function saveCredit(id){
   var cn=cnEl?cnEl.value.trim():'';
   if(!cr||!cn){showToast('Enter OEM credit amount and credit note #');return;}
   var c=getClaim(id);if(!c)return;
+  var oemNumEl=document.getElementById('oem-num-'+id);if(oemNumEl&&oemNumEl.value.trim())c.oemClaimNum=oemNumEl.value.trim();
   var crNum=parseFloat(cr)||0;
   var crInclHST=crNum*1.13;
   var net=c.claimAmt-crInclHST;
@@ -1789,8 +1895,7 @@ function saveCredit(id){
     driveFolder:'Warranty Claims/'+id,aiScore:c.aiScore||null
   });
   updateClaimStatus(id,'cls','CLOSED');
-  renderReconHistory();
-  renderArchive();
+  renderReconHistory();renderArchive();renderReconDMSQueue();
   if(status==='FLAGGED')showToast(id+' closed - FLAGGED: variance exceeds 10% - service manager notified');
   else showToast(id+' closed - credit recorded and added to reconciliation history');
 }
@@ -1845,6 +1950,7 @@ function openSANotesPanel(woId){
   window._commentClaimId=woId;
 }
 function claimWO(id){CLAIMED_WOS.push({id:id,claimedBy:CU?CU.name:''});renderWOList();showToast(id+' claimed');}
+function openSANoteForWO(id){var w=SS_WOS.find(function(x){return x.id===id;});window._commentClaimId=id;document.getElementById('notes-modal-s').textContent='Add note to '+id+(w?' - '+w.cust:'');document.getElementById('existing-notes').innerHTML='<div style="font-size:11px;color:var(--gl);font-style:italic">No notes yet.</div>';document.getElementById('new-note').value='';document.getElementById('notes-modal').classList.add('open');}
 function startClaimFromWO(id){var w=SS_WOS.find(function(x){return x.id===id;});if(!w)return;window._prefillWO=w;window._manualMode=false;nav('claim',document.getElementById('ni-nc'));}
 
 function renderOEMTable(){
@@ -2074,11 +2180,9 @@ function renderDashboard(){
 }
 
 function nav(p,ni){
-  // Techs can only see their own pages
   if(CU&&CU.role==='tech'&&(p==='all'||p==='inspect')){p='my';ni=document.getElementById('ni-my');}
-  // Reset admin overview banner if navigating away
+  if(CU&&CU.role==='sa'&&(p==='my'||p==='all'||p==='inspect'||p==='claim')){p='wo';ni=document.getElementById('ni-wo');}
   var mcbEl=document.querySelector('.mcb');if(mcbEl)mcbEl.style.display='';
-  // Restore admin-overview-tc back to original tc if exists
   var aotc=document.getElementById('admin-overview-tc');
   if(aotc&&p!=='my'){aotc.id='';aotc.innerHTML='<div class="tc-h"><span class="tc-t" id="my-tt">Active claims</span><input class="srch" placeholder="Search..." oninput="filterMyC(this.value)"></div><table><thead><tr><th>Claim #</th><th>Customer</th><th>Equipment</th><th>OEM</th><th>Status</th><th>Priority</th><th>Age</th><th>Info Req</th></tr></thead><tbody id="my-body"></tbody></table>';}
   document.querySelectorAll('[id^="pg-"]').forEach(function(el){el.style.display='none';});
@@ -2088,8 +2192,7 @@ function nav(p,ni){
   if(p==='claim'){ncCur=0;ncCov='';ncPh=Array(5).fill(false);ncFiles=Array(5).fill(null);ncExtraFiles=[];ncDiag=false;ncMed=0;ncData={};window._manualMode=window._manualMode||false;_aiSuggestions=[];ncRender();}
   if(p==='dashboard')renderDashboard();
   if(p==='tasks')renderTaskList();
-  if(p==='recon'){renderReconQueue();renderReconHistory();}
-  // Use setTimeout to ensure DOM is visible before rendering
+  if(p==='recon'){renderReconQueue();renderReconDMSQueue();renderReconHistory();}
   var _p=p;
   setTimeout(function(){
     try{
@@ -2109,12 +2212,9 @@ function nav(p,ni){
 // -- NEW CLAIM -----------------------------------------
 var NC=['Claim Info','Photos & Files','Three Cs','Additional Notes','Review'];
 var ncCur=0,ncCov='',ncPh=Array(5).fill(false),ncDiag=false,ncMed=0;
-var ncFiles=Array(5).fill(null); // actual File objects for each required slot
-var ncExtraFiles=[]; // additional photo files
-var STAGED_PHOTOS={}; // {woId:{files:[],count:0}} - staged before claim submitted
-var ncFiles=Array(5).fill(null); // actual File objects for each required slot
-var ncExtraFiles=[]; // extra/additional photo files
-var STAGED_PHOTOS={}; // {woId: {files:[], timestamp:''}} - pre-staged before claim
+var ncFiles=Array(5).fill(null);
+var ncExtraFiles=[];
+var STAGED_PHOTOS={};
 var ncData={}; // stores field values as tech advances through steps
 
 function saveStepData(s){
@@ -2184,40 +2284,38 @@ function ncS0(){
 function ncS1(){
   var names=['Hour Meter','Serial Number Plate','Complete Machine','Failed Part Close-Up','Failed Part Far Away'];
   var icons=['&#128336;','&#127991;','&#128668;','&#128270;','&#128247;'];
-  // Check staged photos for this WO
-  var woId=ncData['nc-wo']||'';
+  var woId=ncData['nc-wo']||(document.getElementById('nc-wo')?document.getElementById('nc-wo').value:'');
   var staged=woId&&STAGED_PHOTOS[woId]?STAGED_PHOTOS[woId]:{files:[]};
   if(staged.files.length&&!ncPh.some(function(p){return p;})){
     staged.files.slice(0,5).forEach(function(f,i){if(f){ncPh[i]=true;ncFiles[i]=f;}});
   }
   var slots=names.map(function(n,i){
     var up=ncPh[i];
-    var thumb=ncFiles[i]?'<div id="thumb-'+i+'" style="width:100%;height:48px;object-fit:cover;border-radius:4px;margin-bottom:3px;overflow:hidden"><img src="'+URL.createObjectURL(ncFiles[i])+'" style="width:100%;height:48px;object-fit:cover;border-radius:4px" alt="'+n+'"></div>':'';
-    return'<div class="psl'+(up?' up':' rm')+'" id="psl-'+i+'">'+
-      '<input type="file" accept="image/*" capture="environment" id="ph-file-'+i+'" style="position:absolute;opacity:0;width:100%;height:100%;cursor:pointer;top:0;left:0;z-index:2" onchange="handlePhotoFile('+i+',this)">'+
+    var thumbHtml=ncFiles[i]?'<div style="width:100%;height:48px;overflow:hidden;border-radius:4px;margin-bottom:3px"><img src="'+URL.createObjectURL(ncFiles[i])+'" style="width:100%;height:48px;object-fit:cover;border-radius:4px" alt="'+n+'"></div>':'';
+    return'<div class="psl'+(up?' up':' rm')+'" id="psl-'+i+'" style="position:relative;overflow:hidden">'+
+      '<input type="file" accept="image/*" capture="environment" id="ph-file-'+i+'" style="position:absolute;inset:0;opacity:0;cursor:pointer;z-index:2" onchange="handlePhotoFile('+i+',this)">'+
       '<div class="psd" style="z-index:1">'+(up?'&#10003;':'!')+'</div>'+
-      thumb+
-      '<div class="psi" style="font-size:'+(up?'14':'16')+'px">'+(up?'&#9989;':icons[i])+'</div>'+
+      thumbHtml+
+      '<div class="psi">'+(up?'&#9989;':icons[i])+'</div>'+
       '<div class="psn">'+n+'</div>'+
-      '<div class="pst">'+(up?'Uploaded - tap to replace':'Required')+'</div>'+
+      '<div class="pst">'+(up?'Uploaded — tap to replace':'Required')+'</div>'+
     '</div>';
   }).join('');
   var extraSlots='';
   for(var e=0;e<ncMed;e++){
     var ef=ncExtraFiles[e];
-    extraSlots+='<div class="psl'+(ef?' up':'')+'" style="border-color:'+(ef?'var(--gn)':'var(--gbd)')+';background:'+(ef?'var(--gnl)':'var(--wh)')+'">'+
-      '<input type="file" accept="image/*,video/*" capture="environment" id="ph-extra-'+e+'" style="position:absolute;opacity:0;width:100%;height:100%;cursor:pointer;top:0;left:0;z-index:2" onchange="handleExtraFile('+e+',this)">'+
-      '<div class="psi">&#43;</div>'+
-      '<div class="psn">Photo '+(e+1)+'</div>'+
-      '<div class="pst">'+(ef?ef.name.substring(0,14)+'...':'Optional')+'</div>'+
+    extraSlots+='<div class="psl'+(ef?' up':'')+'" style="position:relative;overflow:hidden">'+
+      '<input type="file" accept="image/*,video/*" capture="environment" style="position:absolute;inset:0;opacity:0;cursor:pointer;z-index:2" onchange="handleExtraFile('+e+',this)">'+
+      '<div class="psi">&#43;</div><div class="psn">Photo '+(e+1)+'</div>'+
+      '<div class="pst">'+(ef?ef.name.substring(0,16):'Optional')+'</div>'+
     '</div>';
   }
-  var stagedNote=staged.files.length?'<div class="an ss" style="margin-bottom:8px">'+staged.files.filter(Boolean).length+' pre-staged photos loaded from mobile uploader for WO '+woId+'</div>':'';
+  var stagedNote=staged.files.filter(Boolean).length>0?'<div class="an ss" style="margin-bottom:8px">'+staged.files.filter(Boolean).length+' photos pre-staged from mobile uploader for WO '+woId+'</div>':'';
   return'<div class="fc"><div class="fct"><div class="fn2">2</div>Photos and Media</div>'+
     '<div class="step-err" id="step-err-1"></div>'+
     '<div class="an gd">Photos saved to Google Drive: Warranty Claims / [Claim #] / Photos /</div>'+
     stagedNote+
-    '<div style="background:var(--rl);border:1px solid #f0b8b4;border-radius:7px;padding:8px 11px;margin-bottom:11px;font-size:10px;color:var(--rd);font-weight:600">5 required photos - tap each box to select or take a photo.</div>'+
+    '<div style="background:var(--rl);border:1px solid #f0b8b4;border-radius:7px;padding:8px 11px;margin-bottom:11px;font-size:10px;color:var(--rd);font-weight:600">5 required photos — tap each slot to choose or take a photo.</div>'+
     '<div class="pg">'+slots+'</div>'+
     '<div style="font-size:10px;color:var(--gt);margin-bottom:12px;font-weight:500" id="phcount">'+ncPh.filter(function(p){return p;}).length+' of 5 uploaded</div>'+
     (ncMed>0?'<div class="pg">'+extraSlots+'</div>':'')+
@@ -2225,40 +2323,31 @@ function ncS1(){
   '</div>'+
   '<div class="fc"><div class="fct"><div class="fn2">2b</div>Diagnostic File (optional)</div>'+
     '<div class="an gd">Saved to Google Drive: Warranty Claims / [Claim #] / Documents /</div>'+
-    '<div class="dz'+(ncDiag?' up':'')+'">'+
-      '<input type="file" accept=".pjt,.PJT,.xml,.csv,.pdf" id="diag-file" style="position:absolute;opacity:0;width:100%;height:100%;cursor:pointer;top:0;left:0" onchange="handleDiagFile(this)">'+
+    '<div class="dz'+(ncDiag?' up':'')+'" style="position:relative;overflow:hidden">'+
+      '<input type="file" accept=".pjt,.PJT,.xml,.csv,.pdf" style="position:absolute;inset:0;opacity:0;cursor:pointer" onchange="handleDiagFile(this)">'+
       '<div style="font-size:14px;margin-bottom:4px">&#128196;</div>'+
-      '<div id="diag-label" style="font-size:11px;font-weight:600">'+(ncDiag?'Diagnostic file attached - tap to replace':'Tap to attach PJT or diagnostic export')+'</div>'+
+      '<div id="diag-label" style="font-size:11px;font-weight:600">'+(ncDiag?'Diagnostic file attached':'Tap to attach PJT or diagnostic export')+'</div>'+
     '</div>'+
   '</div>';
 }
 function handlePhotoFile(i,inp){
   if(!inp.files||!inp.files[0])return;
-  var f=inp.files[0];
-  ncFiles[i]=f;ncPh[i]=true;
+  var f=inp.files[0];ncFiles[i]=f;ncPh[i]=true;
   var psl=document.getElementById('psl-'+i);
-  if(psl){psl.className='psl up';var td=document.getElementById('thumb-'+i);
-    if(td){var img=td.querySelector('img');if(img)img.src=URL.createObjectURL(f);}
-    else{var newThumb=document.createElement('div');newThumb.id='thumb-'+i;newThumb.style.cssText='width:100%;height:48px;overflow:hidden;border-radius:4px;margin-bottom:3px;';newThumb.innerHTML='<img src="'+URL.createObjectURL(f)+'" style="width:100%;height:48px;object-fit:cover;border-radius:4px" alt="">';psl.insertBefore(newThumb,psl.querySelector('.psi'));}
-    psl.querySelector('.pst').textContent='Uploaded - tap to replace';psl.querySelector('.psd').innerHTML='&#10003;';}
+  if(psl){
+    psl.className='psl up';
+    var existing=psl.querySelector('img');
+    var url=URL.createObjectURL(f);
+    if(existing){existing.src=url;}
+    else{var d=document.createElement('div');d.style.cssText='width:100%;height:48px;overflow:hidden;border-radius:4px;margin-bottom:3px';d.innerHTML='<img src="'+url+'" style="width:100%;height:48px;object-fit:cover;border-radius:4px">';var psd=psl.querySelector('.psd');psl.insertBefore(d,psd?psd.nextSibling:psl.firstChild);}
+    var pst=psl.querySelector('.pst');if(pst)pst.textContent='Uploaded — tap to replace';
+    var psd=psl.querySelector('.psd');if(psd)psd.innerHTML='&#10003;';
+  }
   var cnt=document.getElementById('phcount');if(cnt)cnt.textContent=ncPh.filter(function(p){return p;}).length+' of 5 uploaded';
   showToast(f.name+' attached');
 }
-function handleExtraFile(i,inp){
-  if(!inp.files||!inp.files[0])return;
-  var f=inp.files[0];
-  ncExtraFiles[i]=f;
-  showToast('Extra photo attached: '+f.name);
-  ncRender();
-}
-function handleDiagFile(inp){
-  if(!inp.files||!inp.files[0])return;
-  ncDiag=true;
-  var label=document.getElementById('diag-label');
-  if(label)label.textContent=inp.files[0].name+' attached';
-  showToast('Diagnostic file attached: '+inp.files[0].name);
-}
-function ncS2(){
+function handleExtraFile(i,inp){if(!inp.files||!inp.files[0])return;ncExtraFiles[i]=inp.files[0];showToast('Extra photo: '+inp.files[0].name);ncRender();}
+function handleDiagFile(inp){if(!inp.files||!inp.files[0])return;ncDiag=true;var l=document.getElementById('diag-label');if(l)l.textContent=inp.files[0].name+' attached';showToast('Diagnostic file attached');}function ncS2(){
   var selOEM=ncData['nc-oem']||(document.getElementById('nc-oem')?document.getElementById('nc-oem').value:'');
   var coachHtml=selOEM?getOEMCoachingHtml(selOEM):'<div class="an bl" style="margin-bottom:12px">Select your OEM on Step 1 to see specific claim writing tips.</div>';
   return coachHtml+'<div class="fc"><div class="fct"><div class="fn2">3</div>The Three Cs</div><div class="step-err" id="step-err-2"></div><div style="margin-bottom:14px"><div class="cb cc">COMPLAINT</div><div class="qb" id="qb-q1"><div class="ql"><div class="qn">Q1</div>What did the operator notice or report? <span style="font-size:9px;color:var(--gn);font-weight:600">(pre-filled from WO if available)</span></div><textarea class="fta" id="nc-q1" rows="2" placeholder="e.g. Operator reported grinding noise  -  3pth won&#39;t lift the snowblower..." oninput="ncNarr()"></textarea></div><div class="qb"><div class="ql"><div class="qn">Q2</div>When and under what conditions did the fault occur?</div><textarea class="fta" id="nc-q2" rows="2" placeholder="e.g. During normal operation at approx 85 hours, 3 days after delivery..." oninput="ncNarr()"></textarea></div><div class="pvb pv-or"><div class="pvl">Complaint narrative</div><div class="pvt" id="np-c"><span style="color:var(--gl)">Answer above...</span></div></div></div><div style="margin-bottom:14px"><div class="cb ca">CAUSE</div><div class="qb" id="qb-q3"><div class="ql"><div class="qn">Q3</div>What failed? Identify the component and root cause.</div><textarea class="fta" id="nc-q3" rows="2" placeholder="e.g. Belt drive system  -  pulley misalignment caused belt failure..." oninput="ncNarr()"></textarea></div><div class="qb" id="qb-q4"><div class="ql"><div class="qn">Q4</div>What diagnostics and tests confirmed the fault?</div><textarea class="fta" id="nc-q4" rows="2" placeholder="e.g. Visual inspection confirmed pulley alignment off-spec..." oninput="ncNarr()"></textarea></div><div class="pvb pv-bl"><div class="pvl">Cause narrative</div><div class="pvt" id="np-a"><span style="color:var(--gl)">Answer above...</span></div></div></div><div><div class="cb cr">CORRECTION</div><div class="qb" id="qb-q6"><div class="ql"><div class="qn">Q6</div>What was replaced or repaired? (part numbers on the work order  -  no need to include them here)</div><textarea class="fta" id="nc-q6" rows="2" placeholder="e.g. Replaced belt kit and alternator pulley..." oninput="ncNarr()"></textarea></div><div class="qb" id="qb-q7"><div class="ql"><div class="qn">Q7</div>Describe the full repair procedure.</div><textarea class="fta" id="nc-q7" rows="2" placeholder="e.g. Attended customer site. Removed defective kit. Installed OEM replacement. Tested alignment..." oninput="ncNarr()"></textarea></div><div class="pvb pv-gn"><div class="pvl">Correction narrative</div><div class="pvt" id="np-r"><span style="color:var(--gl)">Answer above...</span></div></div></div></div><div id="ai-review-output" style="margin-top:14px"></div>';
@@ -3045,450 +3134,381 @@ function buildAdminTaskRows(returned, pendingPay, openWOs, validityPending, awai
 
 function renderReconHistory(){
   var tb=document.getElementById('recon-history-body');if(!tb)return;
-  if(!RECON_HISTORY.length){
-    tb.innerHTML='<tr><td colspan="10" style="text-align:center;padding:16px;color:var(--gl);font-size:12px">No reconciliation records yet.</td></tr>';
-    return;
-  }
-  tb.innerHTML=RECON_HISTORY.map(function(r){
-    var varCol=r.variance===0?'var(--gn)':r.variance>10?'var(--rd)':'var(--or)';
-    var varLbl=r.variance===0?'0%':r.variance.toFixed(1)+'%'+(r.variance>10?' FLAG':'');
-    var statusCls=r.status==='CLOSED'?'p-cls':r.status==='FLAGGED'?'p-info':'p-pen';
-    return'<tr>'+
-      '<td><span class="cid">'+r.claimId+'</span></td>'+
-      '<td style="font-family:monospace;font-size:10px;color:var(--gl)">'+r.oemClaimNum+'</td>'+
-      '<td>'+r.oem+'</td>'+
-      '<td style="font-family:monospace;font-size:10px;color:var(--gl)">'+r.oemCode+'</td>'+
-      '<td>$'+r.claimAmt.toLocaleString()+'</td>'+
-      '<td style="color:var(--gn);font-weight:600">$'+r.creditInclHST.toLocaleString()+'</td>'+
-      '<td style="font-weight:600;color:'+(r.netToHPE===0?'var(--gn)':r.netToHPE>0?'var(--rd)':'var(--gn)')+'">'+( r.netToHPE===0?'$0':'$'+Math.abs(r.netToHPE).toFixed(2))+'</td>'+
-      '<td style="color:'+varCol+';font-weight:700">'+varLbl+'</td>'+
-      '<td style="font-size:10px;color:var(--gt)">'+r.closedDate+'</td>'+
-      '<td><span class="pill '+statusCls+'">'+r.status+'</span></td>'+
-    '</tr>';
-  }).join('');
+  var archived=ARCHIVE_CLAIMS.filter(function(c){return c.oemClaimNum&&c.oemClaimNum.trim();}).slice(0,80);
+  var rows=RECON_HISTORY.map(function(r){
+    return'<tr><td><span class="cid">'+r.claimId+'</span></td><td style="font-family:monospace;font-size:10px;color:var(--gn)">'+r.oemClaimNum+'</td><td>'+r.oem+'</td><td>'+(r.cust||'-')+'</td><td style="font-size:10px;color:var(--gt)">'+(r.soldBy||'-')+'</td><td style="font-weight:600">$'+r.claimAmt.toLocaleString()+'</td><td style="color:var(--bl)">$'+(r.partsAmt||0).toLocaleString()+'</td><td style="color:var(--or)">$'+(r.labourAmt||0).toLocaleString()+'</td><td style="font-size:10px;color:var(--gt)">'+r.closedDate+'</td><td><span class="pill '+(r.status==='CLOSED'?'p-cls':r.status==='FLAGGED'?'p-info':'p-pen')+'">'+r.status+'</span></td></tr>';
+  }).concat(archived.map(function(c){
+    return'<tr><td><span class="cid">'+c.id+'</span></td><td style="font-family:monospace;font-size:10px;color:var(--gn)">'+c.oemClaimNum+'</td><td>'+c.oem+'</td><td>'+c.cust+'</td><td style="font-size:10px;color:var(--gt)">'+(c.soldBy||'-')+'</td><td style="font-weight:600">$'+(c.recovered||c.claimAmt||0).toLocaleString()+'</td><td style="color:var(--bl)">$'+(c.partsAmt||0).toLocaleString()+'</td><td style="color:var(--or)">$'+(c.labourAmt||0).toLocaleString()+'</td><td style="font-size:10px;color:var(--gt)">'+(c.closedDate||'-')+'</td><td><span class="pill p-cls">DMS CLOSED</span></td></tr>';
+  }));
+  if(!rows.length){tb.innerHTML='<tr><td colspan="10" style="text-align:center;padding:16px;color:var(--gl)">No reconciliation records yet.</td></tr>';return;}
+  tb.innerHTML=rows.join('');
+}
+function filterReconHistory(q){
+  var f=q.toLowerCase();var tb=document.getElementById('recon-history-body');if(!tb)return;
+  var archived=ARCHIVE_CLAIMS.filter(function(c){return c.oemClaimNum&&c.oemClaimNum.trim();});
+  var all=RECON_HISTORY.concat(archived.map(function(c){return{claimId:c.id,oemClaimNum:c.oemClaimNum,oem:c.oem,cust:c.cust,soldBy:c.soldBy,claimAmt:c.recovered||c.claimAmt||0,partsAmt:c.partsAmt||0,labourAmt:c.labourAmt||0,closedDate:c.closedDate||'',status:'DMS CLOSED'};}));
+  var fi=all.filter(function(r){return(r.claimId||'').toLowerCase().includes(f)||(r.oem||'').toLowerCase().includes(f)||(r.cust||'').toLowerCase().includes(f)||(r.oemClaimNum||'').toLowerCase().includes(f)||(r.soldBy||'').toLowerCase().includes(f);});
+  tb.innerHTML=fi.map(function(r){return'<tr><td><span class="cid">'+r.claimId+'</span></td><td style="font-family:monospace;font-size:10px;color:var(--gn)">'+(r.oemClaimNum||'-')+'</td><td>'+r.oem+'</td><td>'+(r.cust||'-')+'</td><td style="font-size:10px;color:var(--gt)">'+(r.soldBy||'-')+'</td><td>$'+r.claimAmt.toLocaleString()+'</td><td>$'+(r.partsAmt||0).toLocaleString()+'</td><td>$'+(r.labourAmt||0).toLocaleString()+'</td><td style="font-size:10px">'+(r.closedDate||'-')+'</td><td><span class="pill '+(r.status==='CLOSED'?'p-cls':r.status==='FLAGGED'?'p-info':r.status==='DMS CLOSED'?'p-cls':'p-pen')+'">'+r.status+'</span></td></tr>';}).join('');
 }
 
 
 // ── ANALYTICS DATA ────────────────────────────────────────────────────
 // ── ANALYTICS (computed from real CSV data) ──────────────────────────
+function buildAnalyticsData(){
+  var isMgrView=CU&&CU.role==='mgr';
+  var myLoc=isMgrView?getMgrLocation(CU.name):'';
 
-// ── ANALYTICS — INDIVIDUAL USER SELECTOR ────────────────────────────────
-var _analyticsFilter={type:'all',value:'',dateRange:'all'};
+  // Filter source data by location
+  var openWOs=isMgrView?SS_WOS.filter(function(w){return w.loc===myLoc;}):SS_WOS;
+  var closedWOs=isMgrView?ARCHIVE_CLAIMS.filter(function(c){return c.loc===myLoc;}):ARCHIVE_CLAIMS;
+  var allWOs=openWOs.concat(closedWOs);
 
-function setAnalyticsFilter(type,value){
-  _analyticsFilter.type=type;_analyticsFilter.value=value;
-  renderAnalytics();
-}
+  // Headline KPIs
+  var totalWOs=allWOs.length;
+  var openCount=openWOs.length;
+  var closedCount=closedWOs.length;
+  var totalVal=allWOs.reduce(function(s,r){return s+(r.amount||r.recovered||r.claimAmt||0);},0);
+  var closedVal=closedWOs.reduce(function(s,r){return s+(r.recovered||r.claimAmt||0);},0);
+  var cycleTimes=closedWOs.filter(function(c){return c.daysToClose>0;}).map(function(c){return c.daysToClose;});
+  var avgCycle=cycleTimes.length?Math.round(cycleTimes.reduce(function(a,b){return a+b;},0)/cycleTimes.length):0;
 
-function getAnalyticsRows(filter){
-  // Returns {open:[], closed:[]} filtered to the selection
-  var f=filter||_analyticsFilter;
-  var allOpen=SS_WOS.slice();
-  var allClosed=ARCHIVE_CLAIMS.slice();
-  if(f.type==='location'){
-    allOpen=allOpen.filter(function(w){return w.loc===f.value;});
-    allClosed=allClosed.filter(function(c){return c.loc===f.value;});
-  } else if(f.type==='advisor'){
-    allOpen=allOpen.filter(function(w){return w.soldBy===f.value;});
-    allClosed=allClosed.filter(function(c){return c.soldBy===f.value;});
-  } else if(f.type==='tech'){
-    // Techs show up in in-app CLAIMS only (CSV has no tech assignment)
-    var techClaims=CLAIMS.filter(function(c){return c.tech===f.value;});
-    return{open:techClaims.filter(function(c){return c.s!=='cls';}),closed:techClaims.filter(function(c){return c.s==='cls';}),isClaims:true};
-  } else if(f.type==='mgr'){
-    var mgrLoc=getMgrLocation(f.value);
-    allOpen=allOpen.filter(function(w){return w.loc===mgrLoc;});
-    allClosed=allClosed.filter(function(c){return c.loc===mgrLoc;});
-  }
-  return{open:allOpen,closed:allClosed,isClaims:false};
-}
+  // Open WO aging buckets
+  var age0=openWOs.filter(function(w){return(w.ageDays||0)<7;}).length;
+  var age7=openWOs.filter(function(w){return(w.ageDays||0)>=7&&(w.ageDays||0)<14;}).length;
+  var age14=openWOs.filter(function(w){return(w.ageDays||0)>=14&&(w.ageDays||0)<21;}).length;
+  var age21=openWOs.filter(function(w){return(w.ageDays||0)>=21;}).length;
 
-function sumFields(rows,isClaims){
-  var s={parts:0,labour:0,other:0,total:0,hrsRep:0,hrsBill:0,count:0,closedCount:0};
-  rows.forEach(function(r){
-    s.count++;
-    if(isClaims){s.total+=r.claimAmt||0;}
-    else{s.parts+=r.partsAmt||0;s.labour+=r.labourAmt||0;s.other+=r.otherAmt||0;s.total+=r.totalAmt||r.amount||r.recovered||0;s.hrsRep+=r.hrsReported||0;s.hrsBill+=r.hrsBilled||0;}
+  // OEM breakdown
+  var oemMap={};
+  allWOs.forEach(function(r){
+    var o=r.oem||'Misc';
+    if(!oemMap[o])oemMap[o]={name:o,code:r.oemCode||r.code||'',openCount:0,closedCount:0,openVal:0,closedVal:0};
+    var isOpen=!r.daysToClose&&!r.closedDate;
+    if(r.ageDays!==undefined&&!r.closedDate){oemMap[o].openCount++;oemMap[o].openVal+=r.amount||0;}
+    else{oemMap[o].closedCount++;oemMap[o].closedVal+=r.recovered||r.claimAmt||0;}
   });
-  s.parts=Math.round(s.parts);s.labour=Math.round(s.labour);s.other=Math.round(s.other);s.total=Math.round(s.total);
-  s.hrsRep=Math.round(s.hrsRep*10)/10;s.hrsBill=Math.round(s.hrsBill*10)/10;
-  return s;
+  var oemList=Object.values(oemMap).sort(function(a,b){return(b.openCount+b.closedCount)-(a.openCount+a.closedCount);});
+
+  // Location comparison
+  var locData={};
+  ['HYD010','HYD020'].forEach(function(l){
+    var lOpen=SS_WOS.filter(function(w){return w.loc===l;});
+    var lClosed=ARCHIVE_CLAIMS.filter(function(c){return c.loc===l;});
+    var lCycles=lClosed.filter(function(c){return c.daysToClose>0;}).map(function(c){return c.daysToClose;});
+    locData[l]={
+      loc:l,mgr:LOCATIONS[l]?LOCATIONS[l].mgr:'',
+      openCount:lOpen.length,closedCount:lClosed.length,total:lOpen.length+lClosed.length,
+      closedVal:lClosed.reduce(function(s,c){return s+(c.recovered||c.claimAmt||0);},0),
+      avgCycle:lCycles.length?Math.round(lCycles.reduce(function(a,b){return a+b;},0)/lCycles.length):0
+    };
+  });
+
+  // Service advisor breakdown (sold-by)
+  var saMap={};
+  allWOs.forEach(function(r){
+    var sb=r.soldBy||'Unknown';
+    if(!saMap[sb])saMap[sb]={name:sb,open:0,closed:0,total:0,val:0};
+    var e=saMap[sb];e.total++;
+    if(r.ageDays!==undefined&&!r.closedDate){e.open++;e.val+=r.amount||0;}
+    else{e.closed++;e.val+=r.recovered||r.claimAmt||0;}
+  });
+  var saList=Object.values(saMap).sort(function(a,b){return b.total-a.total;}).slice(0,10);
+
+  // Monthly volume trend (last 6 months from closed date)
+  var monthMap={};
+  closedWOs.forEach(function(c){
+    var dt=c.closedDate||c.dateOpened||'';
+    if(!dt)return;
+    // Parse MM/DD/YYYY
+    var parts=dt.split('/');
+    if(parts.length<2)return;
+    var m=parseInt(parts[0]);var y=parseInt(parts[2])||2026;
+    var key=y+'-'+String(m).padStart(2,'0');
+    if(!monthMap[key])monthMap[key]={month:'',y:y,m:m,count:0,val:0};
+    monthMap[key].count++;monthMap[key].val+=c.recovered||c.claimAmt||0;
+  });
+  var monthNames=['','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  var monthly=Object.keys(monthMap).sort().slice(-6).map(function(k){
+    var e=monthMap[k];return{month:monthNames[e.m]+(e.y!==2026?' '+String(e.y).slice(2):''),count:e.count,val:Math.round(e.val)};
+  });
+
+  return{
+    totalWOs:totalWOs,openCount:openCount,closedCount:closedCount,
+    totalVal:totalVal,closedVal:closedVal,avgCycle:avgCycle,
+    aging:{u7:age0,u14:age7,u21:age14,over21:age21},
+    oems:oemList,locData:locData,saList:saList,monthly:monthly,
+    isMgrView:isMgrView,myLoc:myLoc
+  };
 }
 
-function fmt$(v){return'$'+(v>=1000?(v/1000).toFixed(1)+'K':v.toFixed(0));}
+// ── ANALYTICS (real CSV data + individual drill-down) ───────────────────────
+var _analyticsFilter={type:'all',value:''};
+
+function setAnalyticsFilter(type,value){_analyticsFilter.type=type;_analyticsFilter.value=value;renderAnalytics();}
+
+function fmt$(v){return'$'+(v>=1000?(v/1000).toFixed(1)+'K':Math.round(v).toFixed(0));}
 function fmtPct(a,b){return b>0?Math.round(a/b*100)+'%':'0%';}
 
 function buildFilterSelector(){
-  var isMgr=CU&&CU.role==='mgr';
-  var myLoc=isMgr?getMgrLocation(CU.name):'';
+  var isMgr=CU&&CU.role==='mgr';var myLoc=isMgr?getMgrLocation(CU.name):'';
   var f=_analyticsFilter;
-  var html='<div style="background:var(--wh);border-radius:9px;border:1px solid var(--gbd);padding:12px 14px;margin-bottom:14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">';
+  var html='<div style="background:var(--wh);border-radius:9px;border:1px solid var(--gbd);padding:10px 14px;margin-bottom:14px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">';
   html+='<span style="font-size:11px;font-weight:700;color:var(--gt)">View:</span>';
-  // All button
   html+='<button onclick="setAnalyticsFilter(\'all\',\'\')" class="fb'+(f.type==='all'?' on':'')+'" style="font-size:10px">All WOs</button>';
   if(!isMgr){
     html+='<button onclick="setAnalyticsFilter(\'location\',\'HYD010\')" class="fb'+(f.type==='location'&&f.value==='HYD010'?' on':'')+'" style="font-size:10px">HYD010</button>';
     html+='<button onclick="setAnalyticsFilter(\'location\',\'HYD020\')" class="fb'+(f.type==='location'&&f.value==='HYD020'?' on':'')+'" style="font-size:10px">HYD020</button>';
   }
-  // Advisors
-  var advisors=['Stew','Bryan'];
-  if(isMgr)advisors=advisors.filter(function(a){return getSALocation(a)===myLoc;});
-  advisors.forEach(function(a){
+  ['Stew','Bryan'].filter(function(a){return!isMgr||getSALocation(a)===myLoc;}).forEach(function(a){
     html+='<button onclick="setAnalyticsFilter(\'advisor\',\''+a+'\')" class="fb'+(f.type==='advisor'&&f.value===a?' on':'')+'" style="font-size:10px">'+a+' (SA)</button>';
   });
-  // Managers  
-  if(!isMgr){
-    ['Steve','Bill'].forEach(function(m){
-      html+='<button onclick="setAnalyticsFilter(\'mgr\',\''+m+'\')" class="fb'+(f.type==='mgr'&&f.value===m?' on':'')+'" style="font-size:10px">'+m+' (Mgr)</button>';
-    });
-  }
-  // Techs with in-app claims
-  var techsWithClaims=[...new Set(CLAIMS.map(function(c){return c.tech;}))].filter(Boolean);
+  if(!isMgr){['Steve','Bill'].forEach(function(m){html+='<button onclick="setAnalyticsFilter(\'mgr\',\''+m+'\')" class="fb'+(f.type==='mgr'&&f.value===m?' on':'')+'" style="font-size:10px">'+m+' (Mgr)</button>';});}
+  var techsWithClaims=CLAIMS.map(function(c){return c.tech;}).filter(function(t,i,a){return t&&a.indexOf(t)===i;});
   if(isMgr)techsWithClaims=techsWithClaims.filter(function(t){return getTechLocation(t)===myLoc;});
   if(techsWithClaims.length){
     html+='<span style="font-size:10px;color:var(--gl);margin-left:4px">Techs:</span>';
-    techsWithClaims.forEach(function(t){
-      html+='<button onclick="setAnalyticsFilter(\'tech\',\''+t+'\')" class="fb'+(f.type==='tech'&&f.value===t?' on':'')+'" style="font-size:10px">'+t+'</button>';
-    });
+    techsWithClaims.forEach(function(t){html+='<button onclick="setAnalyticsFilter(\'tech\',\''+t+'\')" class="fb'+(f.type==='tech'&&f.value===t?' on':'')+'" style="font-size:10px">'+t+'</button>';});
   }
-  html+='</div>';
-  return html;
+  return html+'</div>';
 }
 
-function buildAnalyticsData(){
-  var isMgrView=CU&&CU.role==='mgr';
-  var myLoc=isMgrView?getMgrLocation(CU.name):'';
-  var openWOs=isMgrView?SS_WOS.filter(function(w){return w.loc===myLoc;}):SS_WOS;
-  var closedWOs=isMgrView?ARCHIVE_CLAIMS.filter(function(c){return c.loc===myLoc;}):ARCHIVE_CLAIMS;
-  var allWOs=openWOs.concat(closedWOs);
-  var totalWOs=allWOs.length;
-  var closedCount=closedWOs.length;
-  var openCount=openWOs.length;
-  var totalParts=Math.round(allWOs.reduce(function(s,r){return s+(r.partsAmt||0);},0));
-  var totalLabour=Math.round(allWOs.reduce(function(s,r){return s+(r.labourAmt||0);},0));
-  var totalOther=Math.round(allWOs.reduce(function(s,r){return s+(r.otherAmt||0);},0));
-  var totalVal=Math.round(allWOs.reduce(function(s,r){return s+(r.totalAmt||r.amount||r.recovered||r.claimAmt||0);},0));
-  var closedVal=Math.round(closedWOs.reduce(function(s,r){return s+(r.recovered||r.claimAmt||0);},0));
-  var totalHrsRep=Math.round(allWOs.reduce(function(s,r){return s+(r.hrsReported||0);},0)*10)/10;
-  var totalHrsBill=Math.round(allWOs.reduce(function(s,r){return s+(r.hrsBilled||0);},0)*10)/10;
-  var cycleTimes=closedWOs.filter(function(c){return c.daysToClose>0;}).map(function(c){return c.daysToClose;});
-  var avgCycle=cycleTimes.length?Math.round(cycleTimes.reduce(function(a,b){return a+b;},0)/cycleTimes.length):0;
-  var age0=openWOs.filter(function(w){return(w.ageDays||0)<7;}).length;
-  var age7=openWOs.filter(function(w){return(w.ageDays||0)>=7&&(w.ageDays||0)<14;}).length;
-  var age14=openWOs.filter(function(w){return(w.ageDays||0)>=14&&(w.ageDays||0)<21;}).length;
-  var age21=openWOs.filter(function(w){return(w.ageDays||0)>=21;}).length;
-  // OEM breakdown with parts/labour breakdown
-  var oemMap={};
-  allWOs.forEach(function(r){
-    var o=r.oem||'Misc';if(!oemMap[o])oemMap[o]={name:o,code:r.oemCode||r.code||'',oc:0,cc:0,parts:0,labour:0,other:0,total:0,hrsRep:0,hrsBill:0};
-    var e=oemMap[o];var isO=!r.closedDate;
-    if(isO)e.oc++;else e.cc++;
-    e.parts+=r.partsAmt||0;e.labour+=r.labourAmt||0;e.other+=r.otherAmt||0;
-    e.total+=r.totalAmt||r.amount||r.recovered||r.claimAmt||0;
-    e.hrsRep+=r.hrsReported||0;e.hrsBill+=r.hrsBilled||0;
-  });
-  var oemList=Object.values(oemMap).sort(function(a,b){return(b.oc+b.cc)-(a.oc+a.cc);});
-  // Advisor breakdown
-  var saMap={};
-  allWOs.forEach(function(r){
-    var sb=r.soldBy||'Unknown';if(!saMap[sb])saMap[sb]={name:sb,oc:0,cc:0,parts:0,labour:0,other:0,total:0,hrsRep:0,hrsBill:0};
-    var e=saMap[sb];var isO=!r.closedDate;
-    if(isO)e.oc++;else e.cc++;
-    e.parts+=r.partsAmt||0;e.labour+=r.labourAmt||0;e.other+=r.otherAmt||0;
-    e.total+=r.totalAmt||r.amount||r.recovered||r.claimAmt||0;
-    e.hrsRep+=r.hrsReported||0;e.hrsBill+=r.hrsBilled||0;
-  });
-  var saList=Object.values(saMap).sort(function(a,b){return(b.oc+b.cc)-(a.oc+a.cc);}).slice(0,12);
-  // Location breakdown
-  var locData={};
-  ['HYD010','HYD020'].forEach(function(l){
-    var lO=SS_WOS.filter(function(w){return w.loc===l;});
-    var lC=ARCHIVE_CLAIMS.filter(function(c){return c.loc===l;});
-    var all=lO.concat(lC);
-    var lCyc=lC.filter(function(c){return c.daysToClose>0;}).map(function(c){return c.daysToClose;});
-    locData[l]={loc:l,mgr:LOCATIONS[l]?LOCATIONS[l].mgr:'',oc:lO.length,cc:lC.length,total:all.length,
-      parts:Math.round(all.reduce(function(s,r){return s+(r.partsAmt||0);},0)),
-      labour:Math.round(all.reduce(function(s,r){return s+(r.labourAmt||0);},0)),
-      other:Math.round(all.reduce(function(s,r){return s+(r.otherAmt||0);},0)),
-      totalVal:Math.round(all.reduce(function(s,r){return s+(r.totalAmt||r.amount||r.recovered||r.claimAmt||0);},0)),
-      hrsRep:Math.round(all.reduce(function(s,r){return s+(r.hrsReported||0);},0)*10)/10,
-      hrsBill:Math.round(all.reduce(function(s,r){return s+(r.hrsBilled||0);},0)*10)/10,
-      avgCycle:lCyc.length?Math.round(lCyc.reduce(function(a,b){return a+b;},0)/lCyc.length):0};
-  });
-  // Monthly trend
-  var monthMap={};
-  closedWOs.forEach(function(c){
-    var dt=c.closedDate||'';if(!dt)return;
-    var parts=dt.split('/');if(parts.length<2)return;
-    var m=parseInt(parts[0]);var y=parseInt(parts[2])||2026;
-    var key=y+'-'+String(m).padStart(2,'0');
-    if(!monthMap[key])monthMap[key]={m:m,y:y,count:0,parts:0,labour:0,other:0,total:0,hrsRep:0,hrsBill:0};
-    var e=monthMap[key];e.count++;
-    e.parts+=c.partsAmt||0;e.labour+=c.labourAmt||0;e.other+=c.otherAmt||0;
-    e.total+=c.recovered||c.claimAmt||0;e.hrsRep+=c.hrsReported||0;e.hrsBill+=c.hrsBilled||0;
-  });
-  var mnames=['','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  var monthly=Object.keys(monthMap).sort().slice(-6).map(function(k){var e=monthMap[k];return{month:mnames[e.m]+(e.y!==2026?' '+String(e.y).slice(2):''),count:e.count,parts:Math.round(e.parts),labour:Math.round(e.labour),total:Math.round(e.total),hrsRep:Math.round(e.hrsRep*10)/10,hrsBill:Math.round(e.hrsBill*10)/10};});
-  return{totalWOs,openCount,closedCount,totalParts,totalLabour,totalOther,totalVal,closedVal,totalHrsRep,totalHrsBill,avgCycle,aging:{u7:age0,u14:age7,u21:age14,over21:age21},oems:oemList,saList,locData,monthly,isMgrView,myLoc};
+function getFilteredRows(){
+  var f=_analyticsFilter;var isMgr=CU&&CU.role==='mgr';var myLoc=isMgr?getMgrLocation(CU.name):'';
+  var ao=isMgr?SS_WOS.filter(function(w){return w.loc===myLoc;}):SS_WOS.slice();
+  var ac=isMgr?ARCHIVE_CLAIMS.filter(function(c){return c.loc===myLoc;}):ARCHIVE_CLAIMS.slice();
+  if(f.type==='location'){ao=ao.filter(function(w){return w.loc===f.value;});ac=ac.filter(function(c){return c.loc===f.value;});}
+  else if(f.type==='advisor'){ao=ao.filter(function(w){return w.soldBy===f.value;});ac=ac.filter(function(c){return c.soldBy===f.value;});}
+  else if(f.type==='mgr'){var ml=getMgrLocation(f.value);ao=ao.filter(function(w){return w.loc===ml;});ac=ac.filter(function(c){return c.loc===ml;});}
+  else if(f.type==='tech'){var tc=CLAIMS.filter(function(c){return c.tech===f.value;});return{open:tc.filter(function(c){return c.s!=='cls';}),closed:tc.filter(function(c){return c.s==='cls';}),isClaims:true};}
+  return{open:ao,closed:ac,isClaims:false};
+}
+
+function sumR(rows,isClaims){
+  var s={parts:0,labour:0,other:0,total:0,hRep:0,hBill:0,n:rows.length};
+  rows.forEach(function(r){if(isClaims){s.total+=r.claimAmt||0;}else{s.parts+=r.partsAmt||0;s.labour+=r.labourAmt||0;s.other+=r.otherAmt||0;s.total+=r.totalAmt||r.amount||r.recovered||r.claimAmt||0;s.hRep+=r.hrsReported||0;s.hBill+=r.hrsBilled||0;}});
+  s.parts=Math.round(s.parts);s.labour=Math.round(s.labour);s.other=Math.round(s.other);s.total=Math.round(s.total);
+  s.hRep=Math.round(s.hRep*10)/10;s.hBill=Math.round(s.hBill*10)/10;
+  return s;
 }
 
 function renderAnalytics(){
   var el=document.getElementById('analytics-content');if(!el)return;
-  var isMgr=CU&&CU.role==='mgr';
-  var f=_analyticsFilter;
-  var locLabel=isMgr?(' - '+getMgrLocation(CU.name)):'';
-  var isFiltered=f.type!=='all';
-  var html='';
-  // Header
-  html+='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">';
-  html+='<div style="font-size:16px;font-weight:700">Analytics &amp; Performance'+locLabel+'</div>';
-  html+='<div style="font-size:10px;color:var(--gl)">Live data &middot; '+new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'})+'</div>';
-  html+='</div>';
-  // Filter selector
+  var isMgr=CU&&CU.role==='mgr';var myLoc=isMgr?getMgrLocation(CU.name):'';
+  var f=_analyticsFilter;var isFiltered=f.type!=='all';
+  var html='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">';
+  html+='<div style="font-size:16px;font-weight:700">Analytics &amp; Performance'+(isMgr?' - '+myLoc:'')+'</div>';
+  html+='<div style="font-size:10px;color:var(--gl)">Live data &middot; '+new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'})+'</div></div>';
   html+=buildFilterSelector();
-  // If filtered to a specific user/entity, show their individual card first
+
+  // Individual profile card
   if(isFiltered){
-    var rows=getAnalyticsRows(f);
-    var allRows=(rows.open||[]).concat(rows.closed||[]);
-    var s=sumFields(allRows,rows.isClaims||false);
-    var filterLabel=f.type==='location'?f.value:f.type==='advisor'?f.value+' (Service Advisor)':f.type==='mgr'?f.value+' (Service Manager)':f.type==='tech'?f.value+' (Technician)':f.value;
-    html+='<div class="sl2">Individual Profile - '+filterLabel+'</div>';
+    var rows=getFilteredRows();
+    var all=(rows.open||[]).concat(rows.closed||[]);
+    var s=sumR(all,rows.isClaims);
+    var lbl=f.type==='location'?f.value:f.type==='advisor'?f.value+' (Service Advisor)':f.type==='mgr'?f.value+' (Service Manager)':f.value+' (Technician)';
+    html+='<div class="sl2">Individual Profile — '+lbl+'</div>';
     html+='<div style="background:var(--wh);border-radius:9px;border:2px solid var(--or);padding:16px;margin-bottom:14px">';
-    html+='<div style="font-size:14px;font-weight:700;margin-bottom:12px;display:flex;align-items:center;gap:8px"><div style="width:32px;height:32px;border-radius:50%;background:var(--or);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px">'+f.value.slice(0,2).toUpperCase()+'</div>'+filterLabel+'</div>';
+    html+='<div style="font-size:14px;font-weight:700;margin-bottom:12px;display:flex;align-items:center;gap:8px"><div style="width:32px;height:32px;border-radius:50%;background:var(--or);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px">'+f.value.slice(0,2).toUpperCase()+'</div>'+lbl+'</div>';
     html+='<div class="cg cg4" style="gap:8px;margin-bottom:12px">';
-    html+='<div class="sc or"><div class="sc-l">Total WOs</div><div class="sc-v or">'+allRows.length+'</div><div class="sc-s">'+((rows.open||[]).length)+' open, '+((rows.closed||[]).length)+' closed</div></div>';
+    html+='<div class="sc or"><div class="sc-l">Total WOs</div><div class="sc-v or">'+all.length+'</div><div class="sc-s">'+((rows.open||[]).length)+' open / '+((rows.closed||[]).length)+' closed</div></div>';
     if(!rows.isClaims){
-      html+='<div class="sc bl"><div class="sc-l">Hours Billed</div><div class="sc-v bl">'+s.hrsBill+'h</div><div class="sc-s">'+s.hrsRep+'h reported</div></div>';
-      html+='<div class="sc gn"><div class="sc-l">Total Value</div><div class="sc-v gn">'+fmt$(s.total)+'</div><div class="sc-s">Parts + Labour + Other</div></div>';
-      var util=s.hrsRep>0?Math.round(s.hrsBill/s.hrsRep*100):0;
-      html+='<div class="sc am"><div class="sc-l">Billing Efficiency</div><div class="sc-v am">'+util+'%</div><div class="sc-s">Billed vs reported hrs</div></div>';
-    } else {
+      html+='<div class="sc bl"><div class="sc-l">Hours Billed</div><div class="sc-v bl">'+s.hBill+'h</div><div class="sc-s">'+s.hRep+'h reported</div></div>';
       html+='<div class="sc gn"><div class="sc-l">Total Value</div><div class="sc-v gn">'+fmt$(s.total)+'</div></div>';
-      html+='<div class="sc bl"><div class="sc-l">Open Claims</div><div class="sc-v bl">'+((rows.open||[]).length)+'</div></div>';
-      html+='<div class="sc am"><div class="sc-l">Closed Claims</div><div class="sc-v am">'+((rows.closed||[]).length)+'</div></div>';
+      var eff=s.hRep>0?Math.round(s.hBill/s.hRep*100):0;
+      html+='<div class="sc am"><div class="sc-l">Billing Efficiency</div><div class="sc-v am">'+eff+'%</div><div class="sc-s">Billed vs reported hrs</div></div>';
+    } else {
+      html+='<div class="sc gn"><div class="sc-l">Value</div><div class="sc-v gn">'+fmt$(s.total)+'</div></div>';
+      html+='<div class="sc bl"><div class="sc-l">Open</div><div class="sc-v bl">'+((rows.open||[]).length)+'</div></div>';
+      html+='<div class="sc am"><div class="sc-l">Closed</div><div class="sc-v am">'+((rows.closed||[]).length)+'</div></div>';
     }
     html+='</div>';
     if(!rows.isClaims&&s.total>0){
-      html+='<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--gl);margin-bottom:8px">Billing Breakdown</div>';
-      html+='<div style="display:flex;border-radius:6px;overflow:hidden;height:28px;margin-bottom:8px">';
-      if(s.parts>0)html+='<div style="flex:'+s.parts+';background:var(--bl)" title="Parts: '+fmt$(s.parts)+'"></div>';
-      if(s.labour>0)html+='<div style="flex:'+s.labour+';background:var(--or)" title="Labour: '+fmt$(s.labour)+'"></div>';
-      if(s.other>0)html+='<div style="flex:'+s.other+';background:var(--pu)" title="Other: '+fmt$(s.other)+'"></div>';
+      html+='<div style="display:flex;border-radius:5px;overflow:hidden;height:22px;gap:2px;margin-bottom:8px">';
+      if(s.parts>0)html+='<div style="flex:'+s.parts+';background:var(--bl)" title="Parts '+fmt$(s.parts)+'"></div>';
+      if(s.labour>0)html+='<div style="flex:'+s.labour+';background:var(--or)" title="Labour '+fmt$(s.labour)+'"></div>';
+      if(s.other>0)html+='<div style="flex:'+s.other+';background:var(--pu)" title="Other '+fmt$(s.other)+'"></div>';
       html+='</div>';
-      html+='<div style="display:flex;gap:12px;flex-wrap:wrap">';
-      html+='<div style="display:flex;align-items:center;gap:5px"><div style="width:10px;height:10px;border-radius:2px;background:var(--bl)"></div><div><div style="font-size:12px;font-weight:700">'+fmt$(s.parts)+'</div><div style="font-size:9px;color:var(--gl)">Parts</div></div></div>';
-      html+='<div style="display:flex;align-items:center;gap:5px"><div style="width:10px;height:10px;border-radius:2px;background:var(--or)"></div><div><div style="font-size:12px;font-weight:700">'+fmt$(s.labour)+'</div><div style="font-size:9px;color:var(--gl)">Labour</div></div></div>';
-      if(s.other>0)html+='<div style="display:flex;align-items:center;gap:5px"><div style="width:10px;height:10px;border-radius:2px;background:var(--pu)"></div><div><div style="font-size:12px;font-weight:700">'+fmt$(s.other)+'</div><div style="font-size:9px;color:var(--gl)">Other</div></div></div>';
-      html+='<div style="display:flex;align-items:center;gap:5px"><div style="width:10px;height:10px;border-radius:2px;background:var(--am)"></div><div><div style="font-size:12px;font-weight:700">'+s.hrsBill+'h billed / '+s.hrsRep+'h rep.</div><div style="font-size:9px;color:var(--gl)">Hours</div></div></div>';
+      html+='<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:10px">';
+      html+='<div style="display:flex;align-items:center;gap:4px"><div style="width:8px;height:8px;border-radius:2px;background:var(--bl)"></div><div><div style="font-size:12px;font-weight:700">'+fmt$(s.parts)+'</div><div style="font-size:9px;color:var(--gl)">Parts</div></div></div>';
+      html+='<div style="display:flex;align-items:center;gap:4px"><div style="width:8px;height:8px;border-radius:2px;background:var(--or)"></div><div><div style="font-size:12px;font-weight:700">'+fmt$(s.labour)+'</div><div style="font-size:9px;color:var(--gl)">Labour</div></div></div>';
+      if(s.other>0)html+='<div style="display:flex;align-items:center;gap:4px"><div style="width:8px;height:8px;border-radius:2px;background:var(--pu)"></div><div><div style="font-size:12px;font-weight:700">'+fmt$(s.other)+'</div><div style="font-size:9px;color:var(--gl)">Other</div></div></div>';
+      html+='<div style="display:flex;align-items:center;gap:4px"><div style="width:8px;height:8px;border-radius:2px;background:var(--am)"></div><div><div style="font-size:12px;font-weight:700">'+s.hBill+'h billed / '+s.hRep+'h rep</div><div style="font-size:9px;color:var(--gl)">Hours</div></div></div>';
       html+='</div>';
     }
-    // WO list for this person
-    var woList=allRows.slice(0,20);
+    // Recent WOs
+    var woList=all.slice(0,15);
     if(woList.length){
-      html+='<div style="margin-top:12px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--gl);margin-bottom:6px">Recent Work Orders</div>';
-      html+='<div style="max-height:220px;overflow-y:auto">';
+      html+='<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--gl);margin-bottom:6px">Recent Work Orders</div>';
+      html+='<div style="max-height:200px;overflow-y:auto;">';
       woList.forEach(function(r){
-        var isOpen=!r.closedDate&&!r.s;
-        html+='<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--gbd)">';
-        html+='<span style="font-family:monospace;font-size:11px;font-weight:700;color:var(--or);min-width:80px">'+r.id+'</span>';
-        html+='<span style="font-size:11px;flex:1">'+r.cust+'</span>';
-        html+='<span style="font-size:10px;color:var(--gt)">'+fmt$(r.totalAmt||r.amount||r.recovered||r.claimAmt||0)+'</span>';
-        html+='<span class="'+(isOpen?'age-ok':'pill p-cls')+'" style="font-size:9px">'+(isOpen?'Open':'Closed')+'</span>';
-        html+='</div>';
+        html+='<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--gbd)">'+
+          '<span style="font-family:monospace;font-size:11px;font-weight:700;color:var(--or);min-width:80px">'+r.id+'</span>'+
+          '<span style="font-size:11px;flex:1">'+r.cust+'</span>'+
+          '<span style="font-size:10px;color:var(--gt)">'+fmt$(r.totalAmt||r.amount||r.recovered||r.claimAmt||0)+'</span>'+
+          '<span style="font-size:9px;color:'+(!r.closedDate&&!r.s?'var(--gn)':'var(--gl)')+'">'+(r.closedDate||r.s?'Closed':'Open')+'</span>'+
+        '</div>';
       });
       html+='</div>';
     }
     html+='</div>';
   }
-  // ── Build full data for aggregate views ──────────────────────────
-  var d=buildAnalyticsData();
+
+  // Aggregate data
+  var openWOs=isMgr?SS_WOS.filter(function(w){return w.loc===myLoc;}):SS_WOS;
+  var closedWOs=isMgr?ARCHIVE_CLAIMS.filter(function(c){return c.loc===myLoc;}):ARCHIVE_CLAIMS;
+  var allWOs=openWOs.concat(closedWOs);
+  var gs=sumR(allWOs,false);
+
   html+='<div class="sl2">Headline KPIs</div>';
   html+='<div class="cg" style="grid-template-columns:repeat(4,1fr);gap:9px;margin-bottom:14px">';
-  html+='<div class="sc or"><div class="sc-l">Total WOs</div><div class="sc-v or">'+d.totalWOs+'</div><div class="sc-s">'+d.openCount+' open, '+d.closedCount+' closed</div></div>';
-  var cycCol=d.avgCycle>0&&d.avgCycle<=14?'var(--gn)':d.avgCycle<=21?'var(--am)':'var(--rd)';
-  html+='<div class="sc bl"><div class="sc-l">Avg Cycle Time</div><div class="sc-v bl" style="color:'+cycCol+'">'+(d.avgCycle>0?d.avgCycle+'d':'N/A')+'</div><div class="sc-s">Open to close</div></div>';
-  html+='<div class="sc gn"><div class="sc-l">Total Value</div><div class="sc-v gn">'+fmt$(d.totalVal)+'</div><div class="sc-s">All WOs</div></div>';
-  html+='<div class="sc am"><div class="sc-l">Hours Billed</div><div class="sc-v am">'+d.totalHrsBill+'h</div><div class="sc-s">'+d.totalHrsRep+'h reported</div></div>';
+  html+='<div class="sc or"><div class="sc-l">Total WOs</div><div class="sc-v or">'+allWOs.length+'</div><div class="sc-s">'+openWOs.length+' open, '+closedWOs.length+' closed</div></div>';
+  var cycs=closedWOs.filter(function(c){return c.daysToClose>0;}).map(function(c){return c.daysToClose;});
+  var avgC=cycs.length?Math.round(cycs.reduce(function(a,b){return a+b;},0)/cycs.length):0;
+  var cycCol=avgC>0&&avgC<=14?'var(--gn)':avgC<=21?'var(--am)':'var(--rd)';
+  html+='<div class="sc bl"><div class="sc-l">Avg Cycle Time</div><div class="sc-v bl" style="color:'+cycCol+'">'+(avgC>0?avgC+'d':'N/A')+'</div><div class="sc-s">Open to close — target 14d</div></div>';
+  html+='<div class="sc gn"><div class="sc-l">Total Value</div><div class="sc-v gn">'+fmt$(gs.total)+'</div><div class="sc-s">All WOs</div></div>';
+  var eff2=gs.hRep>0?Math.round(gs.hBill/gs.hRep*100):0;
+  html+='<div class="sc am"><div class="sc-l">Hours Billed</div><div class="sc-v am">'+gs.hBill+'h</div><div class="sc-s">'+gs.hRep+'h reported — '+eff2+'% efficiency</div></div>';
   html+='</div>';
-  // Billing breakdown KPIs
+
+  // Billing breakdown
   html+='<div class="sl2">Billing Breakdown — Parts, Labour, Other</div>';
-  html+='<div class="cg cg4" style="margin-bottom:6px">';
-  html+='<div class="sc bl"><div class="sc-l">Total Parts</div><div class="sc-v bl">'+fmt$(d.totalParts)+'</div><div class="sc-s">'+fmtPct(d.totalParts,d.totalVal)+' of total</div></div>';
-  html+='<div class="sc or"><div class="sc-l">Total Labour</div><div class="sc-v or">'+fmt$(d.totalLabour)+'</div><div class="sc-s">'+fmtPct(d.totalLabour,d.totalVal)+' of total</div></div>';
-  html+='<div class="sc pu"><div class="sc-l">Other / Misc</div><div class="sc-v pu">'+fmt$(d.totalOther)+'</div><div class="sc-s">'+fmtPct(d.totalOther,d.totalVal)+' of total</div></div>';
-  var util=d.totalHrsRep>0?Math.round(d.totalHrsBill/d.totalHrsRep*100):0;
-  var utilCol=util>=90?'var(--gn)':util>=75?'var(--am)':'var(--rd)';
-  html+='<div class="sc gn"><div class="sc-l">Billing Efficiency</div><div class="sc-v gn" style="color:'+utilCol+'">'+util+'%</div><div class="sc-s">Billed vs reported hrs</div></div>';
+  html+='<div class="cg cg4" style="margin-bottom:8px">';
+  html+='<div class="sc bl"><div class="sc-l">Total Parts</div><div class="sc-v bl">'+fmt$(gs.parts)+'</div><div class="sc-s">'+fmtPct(gs.parts,gs.total)+' of total</div></div>';
+  html+='<div class="sc or"><div class="sc-l">Total Labour</div><div class="sc-v or">'+fmt$(gs.labour)+'</div><div class="sc-s">'+fmtPct(gs.labour,gs.total)+' of total</div></div>';
+  html+='<div class="sc pu"><div class="sc-l">Other / Misc</div><div class="sc-v pu">'+fmt$(gs.other)+'</div><div class="sc-s">'+fmtPct(gs.other,gs.total)+' of total</div></div>';
+  html+='<div class="sc gn"><div class="sc-l">Billing Efficiency</div><div class="sc-v gn" style="color:'+(eff2>=90?'var(--gn)':eff2>=75?'var(--am)':'var(--rd)')+'">'+eff2+'%</div><div class="sc-s">Billed vs reported hrs</div></div>';
   html+='</div>';
-  // Billing bar
-  if(d.totalVal>0){
+  if(gs.total>0){
     html+='<div style="background:var(--wh);border-radius:7px;border:1px solid var(--gbd);padding:10px 14px;margin-bottom:14px">';
-    html+='<div style="font-size:9px;color:var(--gl);font-weight:600;text-transform:uppercase;margin-bottom:6px">Value composition</div>';
-    html+='<div style="display:flex;border-radius:5px;overflow:hidden;height:22px;gap:2px">';
-    if(d.totalParts>0)html+='<div style="flex:'+d.totalParts+';background:var(--bl);display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:#fff" title="Parts '+fmt$(d.totalParts)+'">'+(d.totalParts/d.totalVal>0.08?fmt$(d.totalParts):'')+'</div>';
-    if(d.totalLabour>0)html+='<div style="flex:'+d.totalLabour+';background:var(--or);display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:#fff" title="Labour '+fmt$(d.totalLabour)+'">'+(d.totalLabour/d.totalVal>0.08?fmt$(d.totalLabour):'')+'</div>';
-    if(d.totalOther>0)html+='<div style="flex:'+d.totalOther+';background:var(--pu);display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:#fff" title="Other '+fmt$(d.totalOther)+'">'+(d.totalOther/d.totalVal>0.08?fmt$(d.totalOther):'')+'</div>';
-    html+='</div>';
-    html+='<div style="display:flex;gap:12px;margin-top:7px">';
-    html+='<div style="display:flex;align-items:center;gap:4px"><div style="width:8px;height:8px;border-radius:2px;background:var(--bl)"></div><span style="font-size:10px;color:var(--gt)">Parts '+fmt$(d.totalParts)+'</span></div>';
-    html+='<div style="display:flex;align-items:center;gap:4px"><div style="width:8px;height:8px;border-radius:2px;background:var(--or)"></div><span style="font-size:10px;color:var(--gt)">Labour '+fmt$(d.totalLabour)+'</span></div>';
-    if(d.totalOther>0)html+='<div style="display:flex;align-items:center;gap:4px"><div style="width:8px;height:8px;border-radius:2px;background:var(--pu)"></div><span style="font-size:10px;color:var(--gt)">Other '+fmt$(d.totalOther)+'</span></div>';
-    html+='</div></div>';
+    html+='<div style="display:flex;border-radius:5px;overflow:hidden;height:22px;gap:2px;margin-bottom:8px">';
+    if(gs.parts>0)html+='<div style="flex:'+gs.parts+';background:var(--bl)" title="Parts '+fmt$(gs.parts)+'"></div>';
+    if(gs.labour>0)html+='<div style="flex:'+gs.labour+';background:var(--or)" title="Labour '+fmt$(gs.labour)+'"></div>';
+    if(gs.other>0)html+='<div style="flex:'+gs.other+';background:var(--pu)" title="Other '+fmt$(gs.other)+'"></div>';
+    html+='</div><div style="display:flex;gap:12px"><div style="display:flex;align-items:center;gap:4px"><div style="width:8px;height:8px;border-radius:2px;background:var(--bl)"></div><span style="font-size:10px;color:var(--gt)">Parts '+fmt$(gs.parts)+'</span></div><div style="display:flex;align-items:center;gap:4px"><div style="width:8px;height:8px;border-radius:2px;background:var(--or)"></div><span style="font-size:10px;color:var(--gt)">Labour '+fmt$(gs.labour)+'</span></div>'+(gs.other>0?'<div style="display:flex;align-items:center;gap:4px"><div style="width:8px;height:8px;border-radius:2px;background:var(--pu)"></div><span style="font-size:10px;color:var(--gt)">Other '+fmt$(gs.other)+'</span></div>':'')+'</div></div>';
   }
+
   // Open WO aging
-  html+='<div class="sl2">Open WO Aging</div>';
-  html+='<div class="cg cg4" style="margin-bottom:14px">';
-  var ageTotal=Math.max(1,d.openCount);
-  [{lbl:'Under 7 days',v:d.aging.u7,cls:'gn'},{lbl:'7 - 14 days',v:d.aging.u14,cls:'bl'},{lbl:'14 - 21 days',v:d.aging.u21,cls:'am'},{lbl:'21+ days',v:d.aging.over21,cls:'rd'}].forEach(function(b){
-    var pct=Math.round(b.v/ageTotal*100);
-    html+='<div class="sc '+b.cls+'"><div class="sc-l">'+b.lbl+'</div><div class="sc-v '+b.cls+'">'+b.v+'</div>';
-    html+='<div style="height:4px;background:var(--gbg);border-radius:2px;margin-top:7px"><div style="height:100%;width:'+pct+'%;background:var(--'+b.cls+');border-radius:2px"></div></div>';
-    html+='<div class="sc-s">'+pct+'% of open</div></div>';
+  var age0=openWOs.filter(function(w){return(w.ageDays||0)<7;}).length;
+  var age7=openWOs.filter(function(w){return(w.ageDays||0)>=7&&(w.ageDays||0)<14;}).length;
+  var age14=openWOs.filter(function(w){return(w.ageDays||0)>=14&&(w.ageDays||0)<21;}).length;
+  var age21=openWOs.filter(function(w){return(w.ageDays||0)>=21;}).length;
+  html+='<div class="sl2">Open WO Aging</div><div class="cg cg4" style="margin-bottom:14px">';
+  [{lbl:'Under 7 days',v:age0,cls:'gn'},{lbl:'7-14 days',v:age7,cls:'bl'},{lbl:'14-21 days',v:age14,cls:'am'},{lbl:'21+ days',v:age21,cls:'rd'}].forEach(function(b){
+    var pct=openWOs.length>0?Math.round(b.v/openWOs.length*100):0;
+    html+='<div class="sc '+b.cls+'"><div class="sc-l">'+b.lbl+'</div><div class="sc-v '+b.cls+'">'+b.v+'</div><div style="height:4px;background:var(--gbg);border-radius:2px;margin-top:7px"><div style="height:100%;width:'+pct+'%;background:var(--'+b.cls+');border-radius:2px"></div></div><div class="sc-s">'+pct+'% of open</div></div>';
   });
   html+='</div>';
-  // OEM breakdown with full billing columns
-  html+='<div class="sl2">OEM Breakdown</div>';
-  html+='<div class="tc" style="margin-bottom:14px;overflow-x:auto"><table><thead><tr>';
-  html+='<th>OEM</th><th>Code</th><th>Open</th><th>Closed</th><th>Parts $</th><th>Labour $</th><th>Other $</th><th>Total $</th><th>Hrs Rep.</th><th>Hrs Billed</th><th>Efficiency</th>';
-  html+='</tr></thead><tbody>';
-  d.oems.forEach(function(o){
-    var util=o.hrsRep>0?Math.round(o.hrsBill/o.hrsRep*100):0;
-    var uCol=util>=90?'var(--gn)':util>=75?'var(--am)':'var(--rd)';
-    html+='<tr><td style="font-weight:700">'+o.name+'</td>';
-    html+='<td style="font-family:monospace;font-size:10px;color:var(--gl)">'+o.code+'</td>';
-    html+='<td style="color:var(--or);font-weight:600">'+o.oc+'</td>';
-    html+='<td style="color:var(--gn);font-weight:600">'+o.cc+'</td>';
-    html+='<td style="color:var(--bl)">'+fmt$(o.parts)+'</td>';
-    html+='<td style="color:var(--or)">'+fmt$(o.labour)+'</td>';
-    html+='<td style="color:var(--pu)">'+fmt$(o.other)+'</td>';
-    html+='<td style="font-weight:700">'+fmt$(o.total)+'</td>';
-    html+='<td>'+Math.round(o.hrsRep*10)/10+'h</td>';
-    html+='<td style="font-weight:600">'+Math.round(o.hrsBill*10)/10+'h</td>';
-    html+='<td style="font-weight:700;color:'+uCol+'">'+util+'%</td>';
-    html+='</tr>';
+
+  // OEM breakdown
+  var oemMap={};
+  allWOs.forEach(function(r){var o=r.oem||'Misc';if(!oemMap[o])oemMap[o]={n:o,code:r.oemCode||r.code||'',oc:0,cc:0,parts:0,labour:0,other:0,total:0,hRep:0,hBill:0};var e=oemMap[o];var isO=!r.closedDate;if(isO)e.oc++;else e.cc++;e.parts+=r.partsAmt||0;e.labour+=r.labourAmt||0;e.other+=r.otherAmt||0;e.total+=r.totalAmt||r.amount||r.recovered||r.claimAmt||0;e.hRep+=r.hrsReported||0;e.hBill+=r.hrsBilled||0;});
+  var oemList=Object.values(oemMap).sort(function(a,b){return(b.oc+b.cc)-(a.oc+a.cc);});
+  html+='<div class="sl2">OEM Breakdown</div><div class="tc" style="margin-bottom:14px;overflow-x:auto"><table><thead><tr><th>OEM</th><th>Code</th><th>Open</th><th>Closed</th><th>Parts $</th><th>Labour $</th><th>Other $</th><th>Total $</th><th>Hrs Rep</th><th>Hrs Billed</th><th>Efficiency</th></tr></thead><tbody>';
+  oemList.forEach(function(o){var eff3=o.hRep>0?Math.round(o.hBill/o.hRep*100):0;var ec=eff3>=90?'var(--gn)':eff3>=75?'var(--am)':'var(--rd)';
+    html+='<tr><td style="font-weight:700">'+o.n+'</td><td style="font-family:monospace;font-size:10px;color:var(--gl)">'+o.code+'</td><td style="color:var(--or);font-weight:600">'+o.oc+'</td><td style="color:var(--gn);font-weight:600">'+o.cc+'</td><td style="color:var(--bl)">'+fmt$(o.parts)+'</td><td style="color:var(--or)">'+fmt$(o.labour)+'</td><td style="color:var(--pu)">'+fmt$(o.other)+'</td><td style="font-weight:700">'+fmt$(o.total)+'</td><td>'+Math.round(o.hRep*10)/10+'h</td><td style="font-weight:600">'+Math.round(o.hBill*10)/10+'h</td><td style="font-weight:700;color:'+ec+'">'+eff3+'%</td></tr>';
   });
   html+='</tbody></table></div>';
+
   // Location comparison
-  if(!d.isMgrView){
-    html+='<div class="sl2">Location Comparison - HYD010 vs HYD020</div>';
-    html+='<div class="cg cg2" style="margin-bottom:14px">';
+  if(!isMgr){
+    html+='<div class="sl2">Location Comparison</div><div class="cg cg2" style="margin-bottom:14px">';
     ['HYD010','HYD020'].forEach(function(l){
-      var ld=d.locData[l]||{};
-      var locCol=l==='HYD010'?'var(--bl)':'var(--gn)';
-      var util2=ld.hrsRep>0?Math.round(ld.hrsBill/ld.hrsRep*100):0;
-      html+='<div class="sc" style="border-top:4px solid '+locCol+';padding:14px">';
-      html+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid var(--gbd)">';
-      html+='<span style="font-size:14px;font-weight:700;font-family:monospace;color:'+locCol+'">'+l+'</span>';
-      html+='<span style="font-size:11px;color:var(--gt)">'+(ld.mgr||'')+'</span></div>';
-      html+='<div class="cg cg2" style="gap:7px;margin-bottom:0">';
-      html+='<div class="ii2"><span class="il2">Total WOs</span><span class="iv2">'+ld.total+'</span></div>';
-      html+='<div class="ii2"><span class="il2">Avg Cycle</span><span class="iv2">'+(ld.avgCycle>0?ld.avgCycle+'d':'N/A')+'</span></div>';
-      html+='<div class="ii2"><span class="il2">Parts</span><span class="iv2" style="color:var(--bl)">'+fmt$(ld.parts||0)+'</span></div>';
-      html+='<div class="ii2"><span class="il2">Labour</span><span class="iv2" style="color:var(--or)">'+fmt$(ld.labour||0)+'</span></div>';
-      html+='<div class="ii2"><span class="il2">Total Value</span><span class="iv2" style="color:var(--gn)">'+fmt$(ld.totalVal||0)+'</span></div>';
-      html+='<div class="ii2"><span class="il2">Hrs Billed</span><span class="iv2">'+(ld.hrsBill||0)+'h</span></div>';
-      html+='<div class="ii2"><span class="il2">Efficiency</span><span class="iv2" style="color:'+(util2>=90?'var(--gn)':util2>=75?'var(--am)':'var(--rd)')+'">'+util2+'%</span></div>';
+      var lO=SS_WOS.filter(function(w){return w.loc===l;});var lC=ARCHIVE_CLAIMS.filter(function(c){return c.loc===l;});
+      var ls=sumR(lO.concat(lC),false);var lCycs=lC.filter(function(c){return c.daysToClose>0;}).map(function(c){return c.daysToClose;});
+      var lac=lCycs.length?Math.round(lCycs.reduce(function(a,b){return a+b;},0)/lCycs.length):0;
+      var leff=ls.hRep>0?Math.round(ls.hBill/ls.hRep*100):0;
+      var lc=l==='HYD010'?'var(--bl)':'var(--gn)';
+      html+='<div class="sc" style="border-top:4px solid '+lc+';padding:14px"><div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid var(--gbd)"><span style="font-size:14px;font-weight:700;font-family:monospace;color:'+lc+'">'+l+'</span><span style="font-size:11px;color:var(--gt)">'+(LOCATIONS[l]?LOCATIONS[l].mgr:'')+'</span></div>';
+      html+='<div class="cg cg2" style="gap:7px">';
+      html+='<div class="ii2"><span class="il2">Total WOs</span><span class="iv2">'+(lO.length+lC.length)+'</span></div>';
+      html+='<div class="ii2"><span class="il2">Avg Cycle</span><span class="iv2">'+(lac>0?lac+'d':'N/A')+'</span></div>';
+      html+='<div class="ii2"><span class="il2">Parts $</span><span class="iv2" style="color:var(--bl)">'+fmt$(ls.parts)+'</span></div>';
+      html+='<div class="ii2"><span class="il2">Labour $</span><span class="iv2" style="color:var(--or)">'+fmt$(ls.labour)+'</span></div>';
+      html+='<div class="ii2"><span class="il2">Total $</span><span class="iv2" style="color:var(--gn)">'+fmt$(ls.total)+'</span></div>';
+      html+='<div class="ii2"><span class="il2">Efficiency</span><span class="iv2" style="color:'+(leff>=90?'var(--gn)':leff>=75?'var(--am)':'var(--rd)')+'">'+leff+'%</span></div>';
       html+='</div></div>';
     });
     html+='</div>';
   }
-  // Service Advisor breakdown
-  html+='<div class="sl2">Service Advisor / Sold-By Breakdown</div>';
-  html+='<div class="tc" style="margin-bottom:14px;overflow-x:auto"><table><thead><tr>';
-  html+='<th>Advisor</th><th>Open</th><th>Closed</th><th>Parts $</th><th>Labour $</th><th>Total $</th><th>Hrs Billed</th><th>Efficiency</th>';
-  html+='</tr></thead><tbody>';
-  d.saList.forEach(function(s){
-    var isSAUser=s.name==='Stew'||s.name==='Bryan';
-    var util3=s.hrsRep>0?Math.round(s.hrsBill/s.hrsRep*100):0;
-    html+='<tr'+(isSAUser?' style="background:#F0FFFE"':'')+'>'; 
-    html+='<td style="font-weight:600">'+s.name+(isSAUser?' <span class="pill p-oem" style="font-size:8px">SA</span>':'')+'</td>';
-    html+='<td style="color:var(--or);font-weight:600">'+s.oc+'</td>';
-    html+='<td style="color:var(--gn);font-weight:600">'+s.cc+'</td>';
-    html+='<td style="color:var(--bl)">'+fmt$(s.parts)+'</td>';
-    html+='<td style="color:var(--or)">'+fmt$(s.labour)+'</td>';
-    html+='<td style="font-weight:700">'+fmt$(s.total)+'</td>';
-    html+='<td>'+Math.round(s.hrsBill*10)/10+'h</td>';
-    html+='<td>'+(util3>0?util3+'%':'-')+'</td>';
-    html+='</tr>';
+
+  // Sold-by breakdown
+  var saMap={};allWOs.forEach(function(r){var sb=r.soldBy||'Unknown';if(!saMap[sb])saMap[sb]={n:sb,oc:0,cc:0,parts:0,labour:0,total:0,hBill:0,hRep:0};var e=saMap[sb];if(!r.closedDate)e.oc++;else e.cc++;e.parts+=r.partsAmt||0;e.labour+=r.labourAmt||0;e.total+=r.totalAmt||r.amount||r.recovered||r.claimAmt||0;e.hBill+=r.hrsBilled||0;e.hRep+=r.hrsReported||0;});
+  var saList=Object.values(saMap).sort(function(a,b){return(b.oc+b.cc)-(a.oc+a.cc);}).slice(0,10);
+  html+='<div class="sl2">Service Advisor / Sold-By Breakdown</div><div class="tc" style="margin-bottom:14px;overflow-x:auto"><table><thead><tr><th>Advisor</th><th>Open</th><th>Closed</th><th>Parts $</th><th>Labour $</th><th>Total $</th><th>Hrs Billed</th><th>Efficiency</th></tr></thead><tbody>';
+  saList.forEach(function(s){var isSAU=s.n==='Stew'||s.n==='Bryan';var eff4=s.hRep>0?Math.round(s.hBill/s.hRep*100):0;
+    html+='<tr'+(isSAU?' style="background:#F0FFFE"':'')+'>'+
+    '<td style="font-weight:600">'+s.n+(isSAU?' <span class="pill p-oem" style="font-size:8px">SA</span>':'')+'</td>'+
+    '<td style="color:var(--or);font-weight:600">'+s.oc+'</td><td style="color:var(--gn);font-weight:600">'+s.cc+'</td>'+
+    '<td style="color:var(--bl)">'+fmt$(s.parts)+'</td><td style="color:var(--or)">'+fmt$(s.labour)+'</td>'+
+    '<td style="font-weight:700">'+fmt$(s.total)+'</td>'+
+    '<td>'+Math.round(s.hBill*10)/10+'h</td><td>'+(eff4>0?eff4+'%':'-')+'</td></tr>';
   });
   html+='</tbody></table></div>';
-  // Technician performance (from in-app claims)
+
+  // Technician performance
   html+='<div class="sl2">Technician Performance (In-App Claims)</div>';
-  var techMap2={};
-  var base2=d.isMgrView?CLAIMS.filter(function(c){return c.loc===d.myLoc;}):CLAIMS;
-  base2.forEach(function(c){
-    if(!c.tech)return;
-    if(!techMap2[c.tech])techMap2[c.tech]={name:c.tech,loc:c.loc,count:0,irs:0,val:0,cyc:0};
-    var e=techMap2[c.tech];e.count++;e.val+=c.claimAmt||0;
-    if(c.info)e.irs++;
-    if(c.workCompleted){var ds=daysSinceSubmission(c.workCompleted);if(ds>0)e.cyc+=ds;}
-  });
-  var techList2=Object.values(techMap2).sort(function(a,b){return b.count-a.count;});
-  if(techList2.length){
+  var techMap={};var base2=isMgr?CLAIMS.filter(function(c){return c.loc===myLoc;}):CLAIMS;
+  base2.forEach(function(c){if(!c.tech)return;if(!techMap[c.tech])techMap[c.tech]={n:c.tech,loc:c.loc,count:0,irs:0,val:0,cyc:0};var e=techMap[c.tech];e.count++;e.val+=c.claimAmt||0;if(c.info)e.irs++;if(c.workCompleted){var ds=daysSinceSubmission(c.workCompleted);if(ds>0)e.cyc+=ds;}});
+  var tList=Object.values(techMap).sort(function(a,b){return b.count-a.count;});
+  if(tList.length){
     html+='<div class="tc" style="margin-bottom:14px"><table><thead><tr><th>Tech</th><th>Location</th><th>Claims</th><th>First-Pass</th><th>IRs</th><th>Avg Cycle</th><th>Value</th></tr></thead><tbody>';
-    techList2.forEach(function(t){
-      var fp=t.count>0?Math.round((1-t.irs/t.count)*100):100;
-      var cyc=t.count>0?Math.round(t.cyc/t.count):0;
-      html+='<tr><td style="font-weight:600">'+t.name+'</td><td><span class="loc-badge loc-'+t.loc.toLowerCase()+'">'+t.loc+'</span></td>';
-      html+='<td>'+t.count+'</td><td style="font-weight:700;color:'+(fp>=90?'var(--gn)':fp>=80?'var(--am)':'var(--rd)')+'">'+fp+'%</td>';
-      html+='<td style="font-weight:700;color:'+(t.irs===0?'var(--gn)':t.irs<=2?'var(--am)':'var(--rd)')+'">'+t.irs+'</td>';
-      html+='<td>'+(cyc>0?cyc+'d':'-')+'</td><td style="color:var(--gn);font-weight:600">'+fmt$(t.val)+'</td></tr>';
+    tList.forEach(function(t){var fp=t.count>0?Math.round((1-t.irs/t.count)*100):100;var cyc=t.count>0?Math.round(t.cyc/t.count):0;
+      html+='<tr><td style="font-weight:600">'+t.n+'</td><td><span class="loc-badge loc-'+t.loc.toLowerCase()+'">'+t.loc+'</span></td><td>'+t.count+'</td><td style="font-weight:700;color:'+(fp>=90?'var(--gn)':fp>=80?'var(--am)':'var(--rd)')+'">'+fp+'%</td><td style="font-weight:700;color:'+(t.irs===0?'var(--gn)':t.irs<=2?'var(--am)':'var(--rd)')+'">'+t.irs+'</td><td>'+(cyc>0?cyc+'d':'-')+'</td><td style="color:var(--gn);font-weight:600">'+fmt$(t.val)+'</td></tr>';
     });
     html+='</tbody></table></div>';
   } else {
     html+='<div style="background:var(--wh);border-radius:9px;border:1px solid var(--gbd);padding:18px;text-align:center;color:var(--gl);font-size:11px;margin-bottom:14px">Technician performance populates from submitted in-app claims.</div>';
   }
-  // Monthly trend with parts/labour breakdown
+
+  // Monthly trend
+  var monthMap={};closedWOs.forEach(function(c){var dt=c.closedDate||'';if(!dt)return;var parts=dt.split('/');if(parts.length<2)return;var m=parseInt(parts[0]);var y=parseInt(parts[2])||2026;var key=y+'-'+String(m).padStart(2,'0');if(!monthMap[key])monthMap[key]={m:m,y:y,count:0,parts:0,labour:0,total:0,hBill:0};var e=monthMap[key];e.count++;e.parts+=c.partsAmt||0;e.labour+=c.labourAmt||0;e.total+=c.recovered||c.claimAmt||0;e.hBill+=c.hrsBilled||0;});
+  var mnames=['','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  var monthly=Object.keys(monthMap).sort().slice(-6).map(function(k){var e=monthMap[k];return{label:mnames[e.m]+(e.y!==2026?' '+String(e.y).slice(2):''),count:e.count,parts:Math.round(e.parts),labour:Math.round(e.labour),total:Math.round(e.total),hBill:Math.round(e.hBill*10)/10};});
   html+='<div class="sl2">Monthly Trend</div>';
-  if(d.monthly.length>0){
-    var maxTotal=Math.max.apply(null,d.monthly.map(function(m){return m.total;}));
-    var maxHrs=Math.max.apply(null,d.monthly.map(function(m){return m.hrsBill;}));
+  if(monthly.length){
+    var maxT=Math.max.apply(null,monthly.map(function(m){return m.total;}));
     html+='<div style="background:var(--wh);border-radius:9px;border:1px solid var(--gbd);padding:14px 16px;margin-bottom:14px">';
     html+='<div style="display:flex;align-items:flex-end;gap:6px;height:110px;margin-bottom:8px">';
-    d.monthly.forEach(function(m){
-      var th=maxTotal>0?Math.round((m.total/maxTotal)*90):4;
-      var ph=maxTotal>0?Math.round((m.parts/maxTotal)*90):2;
-      var lh=maxTotal>0?Math.round((m.labour/maxTotal)*90):2;
+    monthly.forEach(function(m){
+      var th=maxT>0?Math.round((m.total/maxT)*90):4;
+      var ph=maxT>0?Math.round((m.parts/maxT)*90):2;
+      var lh=maxT>0?Math.round((m.labour/maxT)*90):2;
       html+='<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:2px">';
       html+='<div style="font-size:9px;color:var(--gt);margin-bottom:2px">'+fmt$(m.total)+'</div>';
       html+='<div style="display:flex;align-items:flex-end;gap:1px;height:80px">';
-      html+='<div style="width:14px;background:var(--bl);border-radius:2px 2px 0 0;height:'+ph+'px" title="Parts: '+fmt$(m.parts)+'"></div>';
-      html+='<div style="width:14px;background:var(--or);border-radius:2px 2px 0 0;height:'+lh+'px" title="Labour: '+fmt$(m.labour)+'"></div>';
-      html+='</div>';
-      html+='<div style="font-size:9px;color:var(--gl);font-weight:600">'+m.month+'</div>';
-      html+='<div style="font-size:8px;color:var(--am)">'+m.hrsBill+'h</div>';
+      html+='<div style="width:14px;background:var(--bl);border-radius:2px 2px 0 0;height:'+ph+'px" title="Parts"></div>';
+      html+='<div style="width:14px;background:var(--or);border-radius:2px 2px 0 0;height:'+lh+'px" title="Labour"></div>';
+      html+='</div><div style="font-size:9px;color:var(--gl);font-weight:600">'+m.label+'</div>';
+      html+='<div style="font-size:8px;color:var(--am)">'+m.hBill+'h</div>';
       html+='</div>';
     });
-    html+='</div>';
-    html+='<div style="display:flex;gap:14px">';
+    html+='</div><div style="display:flex;gap:12px">';
     html+='<div style="display:flex;align-items:center;gap:4px"><div style="width:8px;height:8px;border-radius:2px;background:var(--bl)"></div><span style="font-size:10px;color:var(--gt)">Parts</span></div>';
     html+='<div style="display:flex;align-items:center;gap:4px"><div style="width:8px;height:8px;border-radius:2px;background:var(--or)"></div><span style="font-size:10px;color:var(--gt)">Labour</span></div>';
     html+='<div style="display:flex;align-items:center;gap:4px"><div style="width:8px;height:8px;border-radius:2px;background:var(--am)"></div><span style="font-size:10px;color:var(--gt)">Hours Billed</span></div>';
     html+='</div></div>';
   } else {
-    html+='<div style="background:var(--wh);border-radius:9px;border:1px solid var(--gbd);padding:18px;text-align:center;color:var(--gl);font-size:11px;margin-bottom:14px">Monthly trend populates from closed WOs.</div>';
+    html+='<div style="background:var(--wh);border-radius:9px;border:1px solid var(--gbd);padding:18px;text-align:center;color:var(--gl);font-size:11px;margin-bottom:14px">Monthly trend populates as closed WOs accumulate.</div>';
   }
   el.innerHTML=html;
 }
 
 document.addEventListener('click',function(e){var list=document.getElementById('wo-dd-list');if(list&&!e.target.closest('.wo-dropdown'))list.classList.remove('open');});
 
-// ── MOBILE PHOTO UPLOADER ─────────────────────────────────────────────
+// ── MOBILE PHOTO UPLOADER ────────────────────────────────────────────────────
 var MU_NAMES=['Hour Meter','Serial Number Plate','Complete Machine','Failed Part Close-Up','Failed Part Far Away'];
 var MU_ICONS=['&#128336;','&#127991;','&#128668;','&#128270;','&#128247;'];
-var muFiles=Array(5).fill(null);
-var muExtraFiles=[];
+var muFiles=Array(5).fill(null);var muExtraFiles=[];
 
 function openMobileUpload(){
   muFiles=Array(5).fill(null);muExtraFiles=[];
   document.getElementById('pg-mobile-upload').style.display='block';
   muRenderSlots();
-  // pre-fill WO if on a claim page
   var woEl=document.getElementById('nc-wo');
   var muWo=document.getElementById('mu-wo');
   if(woEl&&woEl.value&&muWo)muWo.value=woEl.value;
   muCheckStaged();
-  // Set URL hash for sharing
   window.location.hash='upload';
 }
 function closeMobileUpload(){
@@ -3502,69 +3522,49 @@ function muRenderSlots(){
     return'<div class="mu-slot'+(f?' done':'')+'" id="mu-slot-'+i+'">'+
       '<input type="file" accept="image/*" capture="environment" onchange="muHandleFile('+i+',this)">'+
       '<div class="mu-slot-icon">'+(f?'&#9989;':MU_ICONS[i])+'</div>'+
-      '<div class="mu-slot-info">'+
-        '<div class="mu-slot-name">'+n+'<span class="mu-required">REQ</span></div>'+
-        '<div class="mu-slot-sub">'+(f?f.name.substring(0,30):'Tap to take or select photo')+'</div>'+
-      '</div>'+
-      (f?'<img class="mu-slot-thumb" id="mu-thumb-'+i+'" src="'+URL.createObjectURL(f)+'">':'<div style="width:48px;height:48px;border:1.5px dashed #444;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:20px;color:#555;flex-shrink:0">+</div>')+
+      '<div class="mu-slot-info"><div class="mu-slot-name">'+n+'<span class="mu-required">REQ</span></div>'+
+      '<div class="mu-slot-sub">'+(f?f.name.substring(0,28):'Tap to take or select photo')+'</div></div>'+
+      (f?'<img class="mu-slot-thumb" src="'+URL.createObjectURL(f)+'" alt="">':'<div style="width:48px;height:48px;border:1.5px dashed #444;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:20px;color:#555;flex-shrink:0">+</div>')+
     '</div>';
   }).join('');
   var extraEl=document.getElementById('mu-extra-slots');if(!extraEl)return;
   extraEl.innerHTML=muExtraFiles.map(function(f,i){
-    return'<div class="mu-slot'+(f?' done':'')+'" id="mu-extra-'+i+'">'+
+    return'<div class="mu-slot'+(f?' done':'')+'">'+
       '<input type="file" accept="image/*,video/*" capture="environment" onchange="muHandleExtra('+i+',this)">'+
       '<div class="mu-slot-icon">'+(f?'&#9989;':'&#128247;')+'</div>'+
-      '<div class="mu-slot-info">'+
-        '<div class="mu-slot-name">Additional Photo '+(i+1)+'</div>'+
-        '<div class="mu-slot-sub">'+(f?f.name.substring(0,30):'Tap to add')+'</div>'+
-      '</div>'+
-      (f?'<img class="mu-slot-thumb" src="'+URL.createObjectURL(f)+'">':'')+
+      '<div class="mu-slot-info"><div class="mu-slot-name">Additional Photo '+(i+1)+'</div>'+
+      '<div class="mu-slot-sub">'+(f?f.name.substring(0,28):'Tap to add')+'</div></div>'+
+      (f?'<img class="mu-slot-thumb" src="'+URL.createObjectURL(f)+'" alt="">':'')+
     '</div>';
   }).join('');
 }
-function muHandleFile(i,inp){
-  if(!inp.files||!inp.files[0])return;
-  muFiles[i]=inp.files[0];
-  muRenderSlots();
-  var done=muFiles.filter(Boolean).length;
-  document.getElementById('mu-result').textContent=done+' of 5 required photos added';
-}
-function muHandleExtra(i,inp){
-  if(!inp.files||!inp.files[0])return;
-  muExtraFiles[i]=inp.files[0];muRenderSlots();
-}
+function muHandleFile(i,inp){if(!inp.files||!inp.files[0])return;muFiles[i]=inp.files[0];muRenderSlots();document.getElementById('mu-result').textContent=muFiles.filter(Boolean).length+' of 5 required photos added';}
+function muHandleExtra(i,inp){if(!inp.files||!inp.files[0])return;muExtraFiles[i]=inp.files[0];muRenderSlots();}
 function muAddExtra(){muExtraFiles.push(null);muRenderSlots();}
 function muCheckStaged(){
   var wo=(document.getElementById('mu-wo')||{}).value||'';
   var note=document.getElementById('mu-staged-note');if(!note)return;
-  if(wo&&STAGED_PHOTOS[wo]){note.textContent=STAGED_PHOTOS[wo].count+' photos already staged for '+wo;}
-  else if(wo){note.textContent='';}
-  else note.textContent='';
+  note.textContent=wo&&STAGED_PHOTOS[wo]?STAGED_PHOTOS[wo].count+' photos already staged for '+wo:'';
 }
 function muSaveStaged(){
   var wo=(document.getElementById('mu-wo')||{}).value||'';
-  if(!wo){document.getElementById('mu-result').textContent='Enter a work order number first';document.getElementById('mu-result').style.color='var(--rd)';return;}
+  var res=document.getElementById('mu-result');
+  if(!wo){if(res){res.textContent='Enter a work order number first';res.style.color='var(--rd)';}return;}
   var valid=muFiles.filter(Boolean);
-  if(!valid.length){document.getElementById('mu-result').textContent='Add at least one photo';document.getElementById('mu-result').style.color='var(--rd)';return;}
-  // Merge into STAGED_PHOTOS
+  if(!valid.length){if(res){res.textContent='Add at least one photo';res.style.color='var(--rd)';}return;}
   var existing=STAGED_PHOTOS[wo]||{files:Array(5).fill(null),extras:[],count:0};
   muFiles.forEach(function(f,i){if(f)existing.files[i]=f;});
   muExtraFiles.forEach(function(f){if(f)existing.extras.push(f);});
   existing.count=existing.files.filter(Boolean).length;
-  existing.timestamp=new Date().toLocaleTimeString();
   STAGED_PHOTOS[wo]=existing;
-  // Also copy into ncFiles if active claim matches
   var ncWo=ncData['nc-wo']||(document.getElementById('nc-wo')?document.getElementById('nc-wo').value:'');
   if(ncWo===wo){muFiles.forEach(function(f,i){if(f){ncFiles[i]=f;ncPh[i]=true;}});}
-  var cnt=existing.count;
-  document.getElementById('mu-result').style.color='#22C55E';
-  document.getElementById('mu-result').textContent=cnt+' photo'+(cnt!==1?'s':'')+' saved for WO '+wo+' - they will attach when the claim is submitted.';
-  document.getElementById('mu-staged-note').textContent=cnt+' photos staged for '+wo;
-  showToast(cnt+' photos staged for '+wo);
+  if(res){res.style.color='#22C55E';res.textContent=existing.count+' photo'+(existing.count!==1?'s':'')+' saved for WO '+wo+'.';}
+  document.getElementById('mu-staged-note').textContent=existing.count+' photos staged for '+wo;
+  showToast(existing.count+' photos staged for '+wo);
 }
-// Check hash on load
 window.addEventListener('load',function(){if(window.location.hash==='#upload')openMobileUpload();});
-window.addEventListener('hashchange',function(){if(window.location.hash==='#upload')openMobileUpload();else if(document.getElementById('pg-mobile-upload').style.display!=='none')closeMobileUpload();});
+window.addEventListener('hashchange',function(){if(window.location.hash==='#upload')openMobileUpload();else{var el=document.getElementById('pg-mobile-upload');if(el&&el.style.display!=='none')closeMobileUpload();}});
 
 function showToast(m){var t=document.getElementById('toast');t.textContent=m;t.classList.add('show');setTimeout(function(){t.classList.remove('show');},2700);}
 
