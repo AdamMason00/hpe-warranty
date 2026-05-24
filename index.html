@@ -615,7 +615,7 @@ tr.clickable:hover td{background:#FFF3EC;cursor:pointer}
   <div class="ni" id="ni-staff" style="display:none" onclick="nav('staff',this)"><span class="ni-ic">&#128101;</span>Staff &amp; Locations</div>
   <div class="s-lbl">Archive</div>
   <div class="ni" id="ni-archive" onclick="nav('archive',this)"><span class="ni-ic">&#128452;</span>Closed Claims</div>
-  <div class="ni" id="ni-mobile-upload" onclick="openMobileUpload()" style="color:#E8A84A"><span class="ni-ic">&#128247;</span>Upload Photos</div>
+  <div class="ni" id="ni-mobile-upload" onclick="openMobileUpload()" style="color:#E8A84A;display:none"><span class="ni-ic">&#128247;</span>Upload Photos</div>
   <div class="s-lbl" id="wo-review-sl" style="display:none">WO Review</div>
   <div class="ni" id="ni-wo-review" style="display:none" onclick="nav('wo-review',this)"><span class="ni-ic">&#128269;</span>Warranty Review<span class="nbg r" id="wo-review-cnt">0</span></div>
 </div>
@@ -951,9 +951,14 @@ tr.clickable:hover td{background:#FFF3EC;cursor:pointer}
       <button onclick="closeMobileUpload()" style="margin-left:auto;background:#333;border:none;color:#aaa;width:32px;height:32px;border-radius:6px;font-size:16px;cursor:pointer">&#10005;</button>
     </div>
     <div style="margin-bottom:16px">
-      <div style="font-size:10px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Work Order Number</div>
-      <input id="mu-wo" type="text" placeholder="e.g. WS19383" style="width:100%;height:48px;background:#222;border:2px solid #444;border-radius:8px;color:#fff;font-size:16px;padding:0 14px;outline:none;font-family:monospace;letter-spacing:.05em;box-sizing:border-box" oninput="muCheckStaged()" autocomplete="off" autocapitalize="characters">
-      <div id="mu-staged-note" style="font-size:11px;color:#22C55E;margin-top:5px;min-height:16px"></div>
+      <div style="font-size:10px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Select Work Order</div>
+      <input id="mu-wo-search" type="text" placeholder="Search by WO#, customer or equipment..." 
+        style="width:100%;height:44px;background:#222;border:2px solid #444;border-radius:8px 8px 0 0;color:#fff;font-size:14px;padding:0 14px;outline:none;font-family:Inter,sans-serif;box-sizing:border-box"
+        oninput="muFilterWOs(this.value)" onclick="muOpenWOList()" autocomplete="off">
+      <div id="mu-wo-list" style="background:#1A1A1A;border:2px solid #444;border-top:1px solid #333;border-radius:0 0 8px 8px;max-height:220px;overflow-y:auto;display:none"></div>
+      <input id="mu-wo" type="hidden" value="">
+      <div id="mu-wo-selected" style="margin-top:8px;font-size:12px;color:#22C55E;font-weight:600;min-height:18px"></div>
+      <div id="mu-staged-note" style="font-size:11px;color:#22C55E;min-height:16px"></div>
     </div>
     <div style="font-size:10px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">Required Photos (5)</div>
     <div id="mu-slots" style="display:flex;flex-direction:column;gap:10px;margin-bottom:16px"></div>
@@ -1291,6 +1296,7 @@ function setupUI(){
   var hideFromTechFinance=CU.role==='finance'||CU.role==='tech'||CU.role==='admin'||isSA;
   document.getElementById('ni-wo').style.display=(CU.role==='finance')?'none':'flex';
   document.getElementById('ni-nc').style.display=(CU.role==='finance'||isSA)?'none':'flex';
+  document.getElementById('ni-mobile-upload').style.display=CU.role==='tech'?'flex':'none';
   document.getElementById('ni-my').style.display=isSA?'none':'flex';
   document.getElementById('ni-all').style.display=hideFromTechFinance?'none':'flex';
   document.getElementById('ni-inspect').style.display=hideFromTechFinance?'none':'flex';
@@ -1303,7 +1309,7 @@ function setupUI(){
 
 // -- CLAIMS DATA (populated from CSV on login) ---------
 var CLAIMS=[];
-var PMAP={new:'p-new',ins:'p-ins',sub:'p-sub',app:'p-app',appr:'p-pen',rej:'p-rej',ir:'p-info',adm:'p-adm',pay:'p-pay',oem:'p-oem',cls:'p-cls'};
+var PMAP={draft:'p-draft',new:'p-new',ins:'p-ins',sub:'p-sub',app:'p-app',appr:'p-pen',rej:'p-rej',ir:'p-info',adm:'p-adm',pay:'p-pay',oem:'p-oem',cls:'p-cls'};
 
 var IR_DATA=[];
 var IR_METRICS={total:0,mtd:0,avgResolveDays:0};
@@ -2043,16 +2049,39 @@ function openSANotesPanel(woId){
   window._commentClaimId=woId;
 }
 function claimWO(id){
-  // Mark as claimed
+  var w=SS_WOS.find(function(x){return x.id===id;});
+  // Create In Progress draft immediately
+  if(!CLAIMS.find(function(x){return x.id===id;})){
+    var draft={
+      id:id,cust:w?w.cust:'',phone:'',en:w?(w.make+' '+w.model).trim():'',es:'',
+      make:w?w.make:'',model:w?w.model:'',serial:w?w.serial:'',
+      oem:w?w.oem:'',oemCode:w?w.oemCode||w.code||'':'',
+      s:'draft',sl:'IN PROGRESS',p:'lo',pl:'LOW',
+      age:'0d',tech:CU?CU.name:'',loc:w?w.loc:(CU?CU.loc:''),
+      soldBy:w?w.soldBy:'',info:false,claimAmt:0,oemClaimNum:'',
+      woOpen:true,woId:id,aiScore:null,aiReviewed:false,
+      submittedAt:'',workCompleted:'',partRemoved:'',partStorage:'',disposeDate:'',
+      complaint:'',cause:'',correction:'',coverageType:'',
+      driveFolder:'Warranty Claims/'+id,photos:[],
+      notes:[],editLog:[],aiEdits:{},
+      dateCreated:new Date().toISOString(),lastUpdated:new Date().toISOString()
+    };
+    CLAIMS.unshift(draft);
+    // Persist to Sheets immediately
+    apiPost('saveClaim',{claim:draft}).then(function(r){
+      if(r)console.log('Draft claim saved:',id);
+    });
+  }
+  // Mark as claimed in local list
   if(!CLAIMED_WOS.find(function(c){return c.id===id;})){
     CLAIMED_WOS.push({id:id,claimedBy:CU?CU.name:'',ts:Date.now()});
     saveClaimedWOs();
   }
-  // Immediately open the claim form pre-filled
-  var w=SS_WOS.find(function(x){return x.id===id;});
+  // Open form pre-filled
   if(w){window._prefillWO=w;window._manualMode=false;}
+  refreshAll();
   nav('claim',document.getElementById('ni-nc'));
-  showToast('WO '+id+' claimed — fill in the form below');
+  showToast('WO '+id+' claimed — In Progress');
 }
 
 function saveClaimedWOs(){
@@ -2141,7 +2170,37 @@ function openDP(id){
       '<div style="margin-bottom:8px"><div style="font-size:9px;font-weight:700;color:var(--or);text-transform:uppercase;margin-bottom:4px">Complaint  -  AI Improved</div><div style="font-size:11px;color:var(--gt);background:rgba(37,99,235,.06);padding:7px 9px;border-radius:6px;border:1px solid #b0cce8;line-height:1.5">'+c.aiEdits.complaint+'</div></div>'+
     '</div>';
   }
-  body+='<div class="dp-s"><div class="dp-st">Three Cs</div><div style="margin-bottom:7px;padding:7px 9px;background:var(--orl);border-radius:6px;border-left:3px solid var(--or)"><div style="font-size:9px;font-weight:700;color:var(--or);text-transform:uppercase;margin-bottom:2px">Complaint</div><div style="font-size:11px;color:var(--gt)">'+(c&&c.es?c.es:'No complaint recorded.')+'</div></div><div style="margin-bottom:7px;padding:7px 9px;background:var(--bll);border-radius:6px;border-left:3px solid var(--bl)"><div style="font-size:9px;font-weight:700;color:var(--bl);text-transform:uppercase;margin-bottom:2px">Cause</div><div style="font-size:11px;color:var(--gt)">Engineering confirmed design issue with belt kit pulley alignment.</div></div><div style="padding:7px 9px;background:var(--gnl);border-radius:6px;border-left:3px solid var(--gn)"><div style="font-size:9px;font-weight:700;color:var(--gn);text-transform:uppercase;margin-bottom:2px">Correction</div><div style="font-size:11px;color:var(--gt)">Installed OEM factory belt kit. Replaced alternator pulley. Confirmed correct alignment.</div></div></div>';
+  // Photos section — visible to Admin and Manager
+  if((CU.role==='admin'||CU.role==='mgr'||CU.role==='mgmt')&&c&&c.photos&&c.photos.length){
+    body+='<div class="dp-s"><div class="dp-st">Photos ('+c.photos.length+')</div>';
+    body+='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;margin-bottom:0">';
+    c.photos.forEach(function(ph){
+      body+='<div style="background:#F8F8F7;border:1px solid var(--gbd);border-radius:7px;overflow:hidden">';
+      body+='<img src="'+ph.dataUrl+'" style="width:100%;height:90px;object-fit:cover;display:block" alt="'+ph.name+'">';
+      body+='<div style="padding:5px 7px;display:flex;align-items:center;justify-content:space-between">';
+      body+='<span style="font-size:9px;color:var(--gt);font-weight:600">'+ph.name.replace(/_/g,' ')+'</span>';
+      body+='<button onclick="downloadPhoto(\''+ph.dataUrl+'\',\''+ph.fileName+'\')" style="background:none;border:none;cursor:pointer;font-size:13px;padding:0" title="Download '+ph.fileName+'">&#11015;</button>';
+      body+='</div></div>';
+    });
+    body+='</div>';
+    // Add photo button for Admin
+    if(CU.role==='admin'){
+      body+='<div style="margin-top:8px"><label style="cursor:pointer;display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;color:var(--bl);padding:5px 10px;border:1.5px solid var(--bl);border-radius:6px">'+
+        '<input type="file" accept="image/*" multiple style="display:none" onchange="addPhotosToClaimFromDP(\''+c.id+'\',this)">'+
+        '&#43; Add Photos</label></div>';
+    }
+    body+="</div>";
+  } else if((CU.role==='admin'||CU.role==='mgr'||CU.role==='mgmt')&&c){
+    body+='<div class="dp-s"><div class="dp-st">Photos</div>'+
+      '<div class="an warn">No photos attached to this claim yet.</div>';
+    if(CU.role==='admin'){
+      body+='<label style="cursor:pointer;display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;color:var(--bl);padding:5px 10px;border:1.5px solid var(--bl);border-radius:6px">'+
+        '<input type="file" accept="image/*" multiple style="display:none" onchange="addPhotosToClaimFromDP(\''+c.id+'\',this)">'+
+        '&#43; Add Photos</label>';
+    }
+    body+="</div>";
+  }
+    body+='<div class="dp-s"><div class="dp-st">Three Cs</div><div style="margin-bottom:7px;padding:7px 9px;background:var(--orl);border-radius:6px;border-left:3px solid var(--or)"><div style="font-size:9px;font-weight:700;color:var(--or);text-transform:uppercase;margin-bottom:2px">Complaint</div><div style="font-size:11px;color:var(--gt)">'+(c&&c.es?c.es:'No complaint recorded.')+'</div></div><div style="margin-bottom:7px;padding:7px 9px;background:var(--bll);border-radius:6px;border-left:3px solid var(--bl)"><div style="font-size:9px;font-weight:700;color:var(--bl);text-transform:uppercase;margin-bottom:2px">Cause</div><div style="font-size:11px;color:var(--gt)">Engineering confirmed design issue with belt kit pulley alignment.</div></div><div style="padding:7px 9px;background:var(--gnl);border-radius:6px;border-left:3px solid var(--gn)"><div style="font-size:9px;font-weight:700;color:var(--gn);text-transform:uppercase;margin-bottom:2px">Correction</div><div style="font-size:11px;color:var(--gt)">Installed OEM factory belt kit. Replaced alternator pulley. Confirmed correct alignment.</div></div></div>';
   document.getElementById('dp-body').innerHTML=body;
   var acts='<button class="btn b-bl" onclick="openNotesModal(\''+id+'\')">Notes</button>';
   if(c){
@@ -2480,7 +2539,13 @@ function handleExtraFile(i,inp){if(!inp.files||!inp.files[0])return;ncExtraFiles
 function handleDiagFile(inp){if(!inp.files||!inp.files[0])return;ncDiag=true;var l=document.getElementById('diag-label');if(l)l.textContent=inp.files[0].name+' attached';showToast('Diagnostic file attached');}function ncS2(){
   var selOEM=ncData['nc-oem']||(document.getElementById('nc-oem')?document.getElementById('nc-oem').value:'');
   var coachHtml=selOEM?getOEMCoachingHtml(selOEM):'<div class="an bl" style="margin-bottom:12px">Select your OEM on Step 1 to see specific claim writing tips.</div>';
-  return coachHtml+'<div class="fc"><div class="fct"><div class="fn2">3</div>The Three Cs</div><div class="step-err" id="step-err-2"></div><div style="margin-bottom:14px"><div class="cb cc">COMPLAINT</div><div class="qb" id="qb-q1"><div class="ql"><div class="qn">Q1</div>What did the operator notice or report? <span style="font-size:9px;color:var(--gn);font-weight:600">(pre-filled from WO if available)</span></div><textarea class="fta" id="nc-q1" rows="2" placeholder="e.g. Operator reported grinding noise  -  3pth won&#39;t lift the snowblower..." oninput="ncNarr()"></textarea></div><div class="qb"><div class="ql"><div class="qn">Q2</div>When and under what conditions did the fault occur?</div><textarea class="fta" id="nc-q2" rows="2" placeholder="e.g. During normal operation at approx 85 hours, 3 days after delivery..." oninput="ncNarr()"></textarea></div><div class="pvb pv-or"><div class="pvl">Complaint narrative</div><div class="pvt" id="np-c"><span style="color:var(--gl)">Answer above...</span></div></div></div><div style="margin-bottom:14px"><div class="cb ca">CAUSE</div><div class="qb" id="qb-q3"><div class="ql"><div class="qn">Q3</div>What failed? Identify the component and root cause.</div><textarea class="fta" id="nc-q3" rows="2" placeholder="e.g. Belt drive system  -  pulley misalignment caused belt failure..." oninput="ncNarr()"></textarea></div><div class="qb" id="qb-q4"><div class="ql"><div class="qn">Q4</div>What diagnostics and tests confirmed the fault?</div><textarea class="fta" id="nc-q4" rows="2" placeholder="e.g. Visual inspection confirmed pulley alignment off-spec..." oninput="ncNarr()"></textarea></div><div class="pvb pv-bl"><div class="pvl">Cause narrative</div><div class="pvt" id="np-a"><span style="color:var(--gl)">Answer above...</span></div></div></div><div><div class="cb cr">CORRECTION</div><div class="qb" id="qb-q6"><div class="ql"><div class="qn">Q6</div>What was replaced or repaired? (part numbers on the work order  -  no need to include them here)</div><textarea class="fta" id="nc-q6" rows="2" placeholder="e.g. Replaced belt kit and alternator pulley..." oninput="ncNarr()"></textarea></div><div class="qb" id="qb-q7"><div class="ql"><div class="qn">Q7</div>Describe the full repair procedure.</div><textarea class="fta" id="nc-q7" rows="2" placeholder="e.g. Attended customer site. Removed defective kit. Installed OEM replacement. Tested alignment..." oninput="ncNarr()"></textarea></div><div class="pvb pv-gn"><div class="pvl">Correction narrative</div><div class="pvt" id="np-r"><span style="color:var(--gl)">Answer above...</span></div></div></div></div><div id="ai-review-output" style="margin-top:14px"></div>';
+  return coachHtml+'<div class="fc"><div class="fct"><div class="fn2">3</div>The Three Cs</div><div class="step-err" id="step-err-2"></div><div style="margin-bottom:14px"><div class="cb cc">COMPLAINT</div><div class="qb" id="qb-q1"><div class="ql"><div class="qn">Q1</div>What did the operator notice or report? <span style="font-size:9px;color:var(--gn);font-weight:600">(pre-filled from WO if available)</span></div><textarea class="fta" id="nc-q1" rows="2" placeholder="e.g. Operator reported grinding noise  -  3pth won&#39;t lift the snowblower..." oninput="ncNarr()"></textarea></div><div class="qb"><div class="ql"><div class="qn">Q2</div>When and under what conditions did the fault occur?</div><textarea class="fta" id="nc-q2" rows="2" placeholder="e.g. During normal operation at approx 85 hours, 3 days after delivery..." oninput="ncNarr()"></textarea></div><div class="pvb pv-or"><div class="pvl">Complaint narrative</div><div class="pvt" id="np-c"><span style="color:var(--gl)">Answer above...</span></div></div></div><div style="margin-bottom:14px"><div class="cb ca">CAUSE</div><div class="qb" id="qb-q3"><div class="ql"><div class="qn">Q3</div>What failed? Identify the component and root cause.</div><textarea class="fta" id="nc-q3" rows="2" placeholder="e.g. Belt drive system  -  pulley misalignment caused belt failure..." oninput="ncNarr()"></textarea></div><div class="qb" id="qb-q4"><div class="ql"><div class="qn">Q4</div>What diagnostics and tests confirmed the fault?</div><textarea class="fta" id="nc-q4" rows="2" placeholder="e.g. Visual inspection confirmed pulley alignment off-spec..." oninput="ncNarr()"></textarea></div><div class="pvb pv-bl"><div class="pvl">Cause narrative</div><div class="pvt" id="np-a"><span style="color:var(--gl)">Answer above...</span></div></div></div><div><div class="cb cr">CORRECTION</div><div class="qb" id="qb-q6"><div class="ql"><div class="qn">Q6</div>What was replaced or repaired? (part numbers on the work order  -  no need to include them here)</div><textarea class="fta" id="nc-q6" rows="2" placeholder="e.g. Replaced belt kit and alternator pulley..." oninput="ncNarr()"></textarea></div><div class="qb" id="qb-q7"><div class="ql"><div class="qn">Q7</div>Describe the full repair procedure.</div><textarea class="fta" id="nc-q7" rows="2" placeholder="e.g. Attended customer site. Removed defective kit. Installed OEM replacement. Tested alignment..." oninput="ncNarr()"></textarea></div><div class="pvb pv-gn"><div class="pvl">Correction narrative</div><div class="pvt" id="np-r"><span style="color:var(--gl)">Answer above...</span></div></div></div></div>'+
+  '<div style="margin:12px 0;padding:10px 12px;background:linear-gradient(135deg,rgba(37,99,235,.07),rgba(124,58,237,.07));border:1.5px solid rgba(124,58,237,.2);border-radius:8px;display:flex;align-items:center;gap:10px">'+
+    '<button class="btn" style="background:linear-gradient(135deg,#2563EB,#7C3AED);color:#fff;font-size:11px;padding:7px 14px;border:none;flex-shrink:0" onclick="runAIRewrite()">&#10024; AI Rewrite Three Cs</button>'+
+    '<span style="font-size:10px;color:var(--gl)">Fill in your answers above, then tap to get professional OEM-ready narratives based on your input.</span>'+
+  '</div>'+
+  '<div id="ai-rewrite-output" style="margin-bottom:10px"></div>'+
+  '<div id="ai-review-output" style="margin-top:14px"></div>';
 }
 function ncS3(){return'<div class="fc"><div class="fct"><div class="fn2">4</div>Additional Work and Comments</div><div class="an bl">Extra time, seized parts, hydraulic flush, sublet work, etc.</div><div class="fg"><label class="fl2">Additional Work Performed</label><textarea class="fta" id="nc-aw" rows="3" placeholder="e.g. Required extra 1.5 hours due to seized bolts..."></textarea></div><div class="fg"><label class="fl2">Comments and Notes</label><textarea class="fta" id="nc-cm" rows="3" placeholder="Anything else relevant..."></textarea></div></div>'+
 '<div class="fc"><div class="fct"><div class="fn2">4b</div>Failed Part Retention</div>'+
@@ -2602,8 +2667,10 @@ function ncFinalSubmit(){
   var cause=q3;
   var correction=(q6?q6+' ':'')+q7;
   if(CLAIMS.find(function(c){return c.id===ref;})){showToast('Claim '+ref+' already exists');return;}
-  CLAIMS.push({
-    id:ref,cust:cust.split('  -  ')[0],phone:cust.includes('  -  ')?cust.split('  -  ')[1]:'',
+  // Update draft if exists, otherwise insert new
+  var _existing=CLAIMS.find(function(x){return x.id===ref;});
+  if(_existing){
+    Object.assign(_existing,{id:ref,cust:cust.split('  -  ')[0],phone:cust.includes('  -  ')?cust.split('  -  ')[1]:'',
     en:mod,es:q1?q1.substring(0,60):'New warranty claim',
     oem:oem,oemCode:oemCode,s:'appr',sl:'PENDING APPROVAL',p:'plo',pl:'LOW',
     age:'0d',tech:tech,loc:loc,info:false,claimAmt:0,oemClaimNum:'',
@@ -2613,10 +2680,37 @@ function ncFinalSubmit(){
     submittedAt:submittedAt,workCompleted:submittedAt,
     aiScore:null,aiReviewed:false,adminComments:[],editLog:[],
     aiEdits:{complaint:complaint,cause:cause,correction:correction},
-    complaint:complaint,cause:cause,correction:correction
-  });
-  var _savedClaim=CLAIMS[CLAIMS.length-1];
-  apiPost('saveClaim',{claim:_savedClaim}).then(function(r){if(r)console.log('Claim saved to Drive:',r.id);});
+    complaint:complaint,cause:cause,correction:correction});
+  } else {
+  CLAIMS.push({id:ref,cust:cust.split('  -  ')[0],phone:cust.includes('  -  ')?cust.split('  -  ')[1]:'',
+    en:mod,es:q1?q1.substring(0,60):'New warranty claim',
+    oem:oem,oemCode:oemCode,s:'appr',sl:'PENDING APPROVAL',p:'plo',pl:'LOW',
+    age:'0d',tech:tech,loc:loc,info:false,claimAmt:0,oemClaimNum:'',
+    woOpen:!window._manualMode,woId:ref,
+    coverageType:cov,machineHours:hrs,dateOfFailure:df,dateOfRepair:dr,
+    partRemoved:partDate,partStorage:partStorage,disposeDate:dispDate,
+    submittedAt:submittedAt,workCompleted:submittedAt,
+    aiScore:null,aiReviewed:false,adminComments:[],editLog:[],
+    aiEdits:{complaint:complaint,cause:cause,correction:correction},
+    complaint:complaint,cause:cause,correction:correction});
+  }
+  // Find the claim we just saved/updated
+  var _savedClaim=CLAIMS.find(function(x){return x.id===ref;})||CLAIMS[0];
+  // Upload photos to Drive + store on claim
+  if(ncFiles.some(Boolean)){
+    uploadClaimPhotos(ref,ncFiles).then(function(photoResults){
+      if(photoResults.length&&_savedClaim){
+        _savedClaim.photos=photoResults;
+        apiPost('saveClaim',{claim:_savedClaim}).then(function(r){
+          if(r)console.log('Claim+photos saved:',r.id);
+        });
+      }
+    });
+  } else {
+    apiPost('saveClaim',{claim:_savedClaim}).then(function(r){if(r)console.log('Claim saved:',r.id);});
+  }
+  // Auto-download part retention label
+  setTimeout(function(){autoDownloadLabel(ref);},800);
   document.getElementById('nc-c').innerHTML=
     '<div style="text-align:center;padding:36px 18px">'+
       '<div style="font-size:46px;margin-bottom:12px">&#10003;</div>'+
@@ -3631,6 +3725,80 @@ function renderAnalytics(){
 
 document.addEventListener('click',function(e){var list=document.getElementById('wo-dd-list');if(list&&!e.target.closest('.wo-dropdown'))list.classList.remove('open');});
 
+
+// ── AI THREE Cs REWRITE ──────────────────────────────────────────────
+async function runAIRewrite(){
+  var g=function(id){var e=document.getElementById(id);return e?e.value.trim():'';};
+  var oem=g('nc-oem')||ncData['nc-oem']||'OEM';
+  var model=g('nc-mod')||ncData['nc-mod']||'Equipment';
+  var q1=g('nc-q1')||'',q2=g('nc-q2')||'',q3=g('nc-q3')||'',q4=g('nc-q4')||'',q6=g('nc-q6')||'',q7=g('nc-q7')||'';
+  
+  if(!q1&&!q3&&!q6){showToast('Fill in at least Complaint, Cause, and Correction first');return;}
+  
+  var outEl=document.getElementById('ai-rewrite-output');
+  if(outEl)outEl.innerHTML='<div class="ai-loading"><div class="ai-spinner"></div>AI is rewriting your Three Cs...</div>';
+  
+  var prompt='You are a warranty claim specialist for Hyde Park Equipment Ltd., a Kubota/Toro/Walker/Stihl dealer in Ontario, Canada. Rewrite these technician answers into professional OEM warranty claim narratives.\n\nOEM: '+oem+'\nEquipment: '+model+'\n\nTechnician answers:\nQ1 - What operator reported: '+q1+'\nQ2 - When/conditions: '+q2+'\nQ3 - What failed/root cause: '+q3+'\nQ4 - Diagnostics: '+q4+'\nQ6 - What was repaired: '+q6+'\nQ7 - Full repair procedure: '+q7+'\n\nWrite professional complaint, cause, and correction. Be specific and technical. Include machine hours if mentioned. Each section 2-4 sentences max.\n\nReturn ONLY valid JSON (no markdown):\n{"complaint":"...","cause":"...","correction":"..."}';
+  
+  try{
+    var resp=await fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+      body:JSON.stringify({
+        model:'claude-sonnet-4-20250514',max_tokens:800,
+        messages:[{role:'user',content:prompt}]
+      })
+    });
+    var data=await resp.json();
+    var text=data.content[0].text.trim();
+    var result=JSON.parse(text.replace(/```json|```/g,'').trim());
+    
+    if(outEl){
+      outEl.innerHTML=
+        '<div style="background:linear-gradient(135deg,rgba(37,99,235,.08),rgba(124,58,237,.08));border:1.5px solid rgba(37,99,235,.25);border-radius:9px;padding:14px;margin-top:0">'+
+        '<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">'+
+          '<div style="width:22px;height:22px;border-radius:5px;background:linear-gradient(135deg,#2563EB,#7C3AED);display:flex;align-items:center;justify-content:center;font-size:11px;color:#fff">AI</div>'+
+          '<span style="font-size:12px;font-weight:700">AI Rewritten Three Cs</span>'+
+          '<span style="font-size:10px;color:var(--gl)">Review and apply below</span>'+
+        '</div>'+
+        '<div style="margin-bottom:8px;padding:8px 10px;background:rgba(255,255,255,.6);border-radius:6px;border-left:3px solid var(--or)">'+
+          '<div style="font-size:9px;font-weight:700;color:var(--or);text-transform:uppercase;margin-bottom:3px">Complaint</div>'+
+          '<div style="font-size:11px;color:var(--gt);line-height:1.6" id="ai-rw-complaint">'+result.complaint+'</div>'+
+        '</div>'+
+        '<div style="margin-bottom:8px;padding:8px 10px;background:rgba(255,255,255,.6);border-radius:6px;border-left:3px solid var(--bl)">'+
+          '<div style="font-size:9px;font-weight:700;color:var(--bl);text-transform:uppercase;margin-bottom:3px">Cause</div>'+
+          '<div style="font-size:11px;color:var(--gt);line-height:1.6" id="ai-rw-cause">'+result.cause+'</div>'+
+        '</div>'+
+        '<div style="margin-bottom:12px;padding:8px 10px;background:rgba(255,255,255,.6);border-radius:6px;border-left:3px solid var(--gn)">'+
+          '<div style="font-size:9px;font-weight:700;color:var(--gn);text-transform:uppercase;margin-bottom:3px">Correction</div>'+
+          '<div style="font-size:11px;color:var(--gt);line-height:1.6" id="ai-rw-correction">'+result.correction+'</div>'+
+        '</div>'+
+        '<div style="display:flex;gap:7px">'+
+          '<button class="btn b-gn" style="font-size:11px" onclick="applyAIRewrite()">&#10003; Apply to Form</button>'+
+          '<button class="btn b-gh" style="font-size:11px" onclick="document.getElementById(\'ai-rewrite-output\').innerHTML=\'\';showToast(\'AI suggestions dismissed\')">Dismiss</button>'+
+        '</div>'+
+        '</div>';
+    }
+    // Store result for apply
+    window._aiRewriteResult=result;
+  }catch(e){
+    console.error('AI rewrite failed:',e);
+    if(outEl)outEl.innerHTML='<div class="an warn">AI rewrite unavailable — check your connection. You can still proceed with your own text.</div>';
+  }
+}
+
+function applyAIRewrite(){
+  if(!window._aiRewriteResult)return;
+  var r=window._aiRewriteResult;
+  var q1=document.getElementById('nc-q1'),q3=document.getElementById('nc-q3'),q7=document.getElementById('nc-q7');
+  if(q1){q1.value=r.complaint;ncData['nc-q1']=r.complaint;}
+  if(q3){q3.value=r.cause;ncData['nc-q3']=r.cause;}
+  if(q7){q7.value=r.correction;ncData['nc-q7']=r.correction;}
+  ncNarr();
+  document.getElementById('ai-rewrite-output').innerHTML='<div class="an ss">AI rewrite applied. Review and adjust as needed.</div>';
+  showToast('AI Three Cs applied to form');
+  window._aiRewriteResult=null;
+}
 // ── MOBILE PHOTO UPLOADER ────────────────────────────────────────────────────
 var MU_NAMES=['Hour Meter','Serial Number Plate','Complete Machine','Failed Part Close-Up','Failed Part Far Away'];
 var MU_ICONS=['&#128336;','&#127991;','&#128668;','&#128270;','&#128247;'];
@@ -3640,9 +3808,30 @@ function openMobileUpload(){
   muFiles=Array(5).fill(null);muExtraFiles=[];
   document.getElementById('pg-mobile-upload').style.display='block';
   muRenderSlots();
+  // Pre-fill from active claim if available
   var woEl=document.getElementById('nc-wo');
-  var muWo=document.getElementById('mu-wo');
-  if(woEl&&woEl.value&&muWo)muWo.value=woEl.value;
+  var ncWoVal=ncData['nc-wo']||(woEl?woEl.value:'');
+  if(ncWoVal){
+    document.getElementById('mu-wo').value=ncWoVal;
+    var search=document.getElementById('mu-wo-search');
+    if(search){
+      var w=SS_WOS.find(function(x){return x.id===ncWoVal;});
+      search.value=ncWoVal+(w?' — '+w.cust:'');
+    }
+    var sel=document.getElementById('mu-wo-selected');
+    if(sel)sel.textContent='Selected: '+ncWoVal;
+  }
+  // Add click-outside to close WO list
+  setTimeout(function(){
+    document.addEventListener('click',function muClickOut(e){
+      var list=document.getElementById('mu-wo-list');
+      var search=document.getElementById('mu-wo-search');
+      if(list&&search&&!list.contains(e.target)&&e.target!==search){
+        list.style.display='none';
+        document.removeEventListener('click',muClickOut);
+      }
+    });
+  },100);
   muCheckStaged();
   window.location.hash='upload';
 }
@@ -3676,27 +3865,89 @@ function muRenderSlots(){
 function muHandleFile(i,inp){if(!inp.files||!inp.files[0])return;muFiles[i]=inp.files[0];muRenderSlots();document.getElementById('mu-result').textContent=muFiles.filter(Boolean).length+' of 5 required photos added';}
 function muHandleExtra(i,inp){if(!inp.files||!inp.files[0])return;muExtraFiles[i]=inp.files[0];muRenderSlots();}
 function muAddExtra(){muExtraFiles.push(null);muRenderSlots();}
+function muOpenWOList(){
+  var list=document.getElementById('mu-wo-list');if(!list)return;
+  list.style.display='block';
+  muFilterWOs('');
+}
+function muFilterWOs(q){
+  var list=document.getElementById('mu-wo-list');if(!list)return;
+  list.style.display='block';
+  var f=(q||'').toLowerCase();
+  var wos=SS_WOS.filter(function(w){
+    return !f||w.id.toLowerCase().includes(f)||
+      (w.cust||'').toLowerCase().includes(f)||
+      ((w.make||'')+' '+(w.model||'')).toLowerCase().includes(f);
+  }).slice(0,30);
+  if(!wos.length){
+    list.innerHTML='<div style="padding:12px 14px;color:#555;font-size:12px">No open work orders found</div>';
+    return;
+  }
+  // Group by location
+  var hyd010=wos.filter(function(w){return w.loc==='HYD010';});
+  var hyd020=wos.filter(function(w){return w.loc==='HYD020';});
+  var html='';
+  if(hyd010.length){
+    html+='<div style="padding:5px 12px;font-size:9px;font-weight:700;color:#555;text-transform:uppercase;letter-spacing:.06em;background:#111">South — HYD010</div>';
+    hyd010.forEach(function(w){html+=muWORow(w);});
+  }
+  if(hyd020.length){
+    html+='<div style="padding:5px 12px;font-size:9px;font-weight:700;color:#555;text-transform:uppercase;letter-spacing:.06em;background:#111">North — HYD020</div>';
+    hyd020.forEach(function(w){html+=muWORow(w);});
+  }
+  list.innerHTML=html;
+}
+function muWORow(w){
+  return'<div onclick="muSelectWO(\''+w.id+'\',\''+w.cust.replace(/'/g,'')+'\')" '+
+    'style="padding:10px 14px;cursor:pointer;border-bottom:1px solid #222;display:flex;align-items:center;gap:10px" '+
+    'onmouseover="this.style.background=\'#222\'" onmouseout="this.style.background=\'\'">' +
+    '<span style="font-family:monospace;font-size:12px;font-weight:700;color:#E8620A;min-width:80px">'+w.id+'</span>'+
+    '<div><div style="font-size:12px;font-weight:600;color:#ccc">'+w.cust+'</div>'+
+    '<div style="font-size:10px;color:#666">'+(w.make||'')+' '+(w.model||'')+'</div></div>'+
+    '</div>';
+}
+function muSelectWO(id,cust){
+  document.getElementById('mu-wo').value=id;
+  var search=document.getElementById('mu-wo-search');
+  if(search)search.value=id+' — '+cust;
+  var list=document.getElementById('mu-wo-list');
+  if(list)list.style.display='none';
+  var sel=document.getElementById('mu-wo-selected');
+  if(sel)sel.textContent='Selected: '+id;
+  muCheckStaged();
+}
 function muCheckStaged(){
   var wo=(document.getElementById('mu-wo')||{}).value||'';
   var note=document.getElementById('mu-staged-note');if(!note)return;
   note.textContent=wo&&STAGED_PHOTOS[wo]?STAGED_PHOTOS[wo].count+' photos already staged for '+wo:'';
 }
-function muSaveStaged(){
+async function muSaveStaged(){
   var wo=(document.getElementById('mu-wo')||{}).value||'';
   var res=document.getElementById('mu-result');
-  if(!wo){if(res){res.textContent='Enter a work order number first';res.style.color='var(--rd)';}return;}
+  if(!wo){if(res){res.textContent='Select a work order first';res.style.color='var(--rd)';}return;}
   var valid=muFiles.filter(Boolean);
   if(!valid.length){if(res){res.textContent='Add at least one photo';res.style.color='var(--rd)';}return;}
-  var existing=STAGED_PHOTOS[wo]||{files:Array(5).fill(null),extras:[],count:0};
+  if(res){res.textContent='Uploading to Drive...';res.style.color='#aaa';}
+  // Upload each photo to Drive immediately
+  var photoResults=await uploadClaimPhotos(wo,muFiles);
+  var existing=STAGED_PHOTOS[wo]||{files:Array(5).fill(null),extras:[],count:0,photos:[]};
   muFiles.forEach(function(f,i){if(f)existing.files[i]=f;});
   muExtraFiles.forEach(function(f){if(f)existing.extras.push(f);});
   existing.count=existing.files.filter(Boolean).length;
+  existing.photos=(existing.photos||[]).concat(photoResults);
   STAGED_PHOTOS[wo]=existing;
+  // Copy to ncFiles if active claim matches
   var ncWo=ncData['nc-wo']||(document.getElementById('nc-wo')?document.getElementById('nc-wo').value:'');
   if(ncWo===wo){muFiles.forEach(function(f,i){if(f){ncFiles[i]=f;ncPh[i]=true;}});}
-  if(res){res.style.color='#22C55E';res.textContent=existing.count+' photo'+(existing.count!==1?'s':'')+' saved for WO '+wo+'.';}
-  document.getElementById('mu-staged-note').textContent=existing.count+' photos staged for '+wo;
-  showToast(existing.count+' photos staged for '+wo);
+  // Update draft claim with photos if it exists
+  var draftClaim=CLAIMS.find(function(x){return x.id===wo;});
+  if(draftClaim){
+    draftClaim.photos=(draftClaim.photos||[]).concat(photoResults);
+    apiPost('saveClaim',{claim:draftClaim});
+  }
+  if(res){res.style.color='#22C55E';res.textContent=existing.count+' photo'+(existing.count!==1?'s':'')+' saved to Drive for WO '+wo+'.';}
+  document.getElementById('mu-staged-note').textContent=existing.count+' photos in Drive for '+wo;
+  showToast(existing.count+' photos saved to Drive for '+wo);
 }
 window.addEventListener('load',function(){if(window.location.hash==='#upload')openMobileUpload();});
 window.addEventListener('hashchange',function(){if(window.location.hash==='#upload')openMobileUpload();else{var el=document.getElementById('pg-mobile-upload');if(el&&el.style.display!=='none')closeMobileUpload();}});
@@ -3716,6 +3967,77 @@ async function refreshWOsFromDrive(){
   } else {
     showToast('Import failed - check Drive folder has a CSV file');
   }
+}
+
+// ── PHOTO UTILS ───────────────────────────────────────────────────────
+var PHOTO_SLOT_NAMES=['Hour_Meter','Serial_Number_Plate','Complete_Machine',
+  'Failed_Part_Close_Up','Failed_Part_Far_Away'];
+
+function fileToBase64(file){
+  return new Promise(function(resolve,reject){
+    var r=new FileReader();
+    r.onload=function(e){resolve(e.target.result);};
+    r.onerror=reject;
+    r.readAsDataURL(file);
+  });
+}
+
+async function uploadClaimPhotos(claimId,files){
+  var results=[];
+  for(var i=0;i<files.length;i++){
+    if(!files[i])continue;
+    try{
+      var b64=await fileToBase64(files[i]);
+      var slotName=PHOTO_SLOT_NAMES[i]||('Photo_'+(i+1));
+      var fileName=claimId+'_'+slotName+'.jpg';
+      // Store locally on claim object
+      results.push({slot:i,name:slotName,fileName:fileName,dataUrl:b64});
+      // Upload to Drive
+      var b64Data=b64.split(',')[1];
+      apiPost('uploadPhoto',{
+        claimId:claimId,base64:b64Data,
+        mimeType:files[i].type||'image/jpeg',fileName:fileName
+      }).then(function(r){if(r&&r.ok)console.log('Photo uploaded to Drive:',r.fileName);});
+    }catch(e){console.warn('Photo upload failed for slot',i,e);}
+  }
+  return results;
+}
+
+
+function addPhotosToClaimFromDP(claimId, inp){
+  if(!inp.files||!inp.files.length)return;
+  var cl=getClaim(claimId);if(!cl)return;
+  if(!cl.photos)cl.photos=[];
+  var files=Array.from(inp.files);
+  var slotOffset=cl.photos.length;
+  files.forEach(function(file,i){
+    var slotIdx=slotOffset+i;
+    var slotName=PHOTO_SLOT_NAMES[slotIdx]||('Additional_Photo_'+(slotIdx+1));
+    var fileName=claimId+'_'+slotName+'.jpg';
+    fileToBase64(file).then(function(dataUrl){
+      cl.photos.push({slot:slotIdx,name:slotName,fileName:fileName,dataUrl:dataUrl});
+      // Upload to Drive
+      apiPost('uploadPhoto',{claimId:claimId,base64:dataUrl.split(',')[1],
+        mimeType:file.type||'image/jpeg',fileName:fileName});
+      apiPost('saveClaim',{claim:cl});
+      showToast('Photo added: '+fileName);
+      // Re-open DP to show new photo
+      setTimeout(function(){openDP(claimId);},500);
+    });
+  });
+}
+function downloadPhoto(dataUrl,fileName){
+  var a=document.createElement('a');
+  a.href=dataUrl;a.download=fileName;
+  document.body.appendChild(a);a.click();
+  document.body.removeChild(a);
+}
+
+function autoDownloadLabel(claimId){
+  var c=getClaim(claimId);if(!c)return;
+  openLabelModalFromData(c);
+  // Auto-print after a short delay
+  setTimeout(function(){printLabel();},400);
 }
 
 function showToast(m){var t=document.getElementById('toast');t.textContent=m;t.classList.add('show');setTimeout(function(){t.classList.remove('show');},2700);}
