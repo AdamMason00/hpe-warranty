@@ -1256,9 +1256,8 @@ function setupUI(){
   var rlbl={tech:'TECHNICIAN',admin:'WARRANTY ADMIN',sa:'SERVICE ADVISOR',mgr:'SERVICE MGR',finance:'ADMIN/FINANCE',mgmt:'MANAGEMENT'};
   rp.classList.add(rmap[CU.role]||'rp-t');rp.textContent=rlbl[CU.role]||'TECHNICIAN';
   var lb=document.getElementById('loc-badge-top');
-  if(CU.loc){lb.style.display='inline-flex';lb.textContent=CU.loc;lb.className='ibadge '+(CU.loc==='HYD010'?'ss':'gd');}
+  if(CU.loc){lb.style.display='inline-flex';lb.textContent=CU.loc==='HYD020'?'North (HYD020)':'South (HYD010)';lb.className='ibadge '+(CU.loc==='HYD010'?'ss':'gd');}
   else lb.style.display='none';
-  var isSA=CU.role==='sa';
   var isSA=CU.role==='sa';
   var isAdm=['admin','mgr','finance','mgmt'].includes(CU.role);
   var isMgr=['mgr','mgmt'].includes(CU.role);
@@ -1990,9 +1989,14 @@ function renderWOList(){
   initWOReviewStatus();
   var openEl=document.getElementById('wo-list');var clEl=document.getElementById('wo-claimed-list');if(!openEl)return;
   var isSA=CU&&CU.role==='sa';
+  var isTech=CU&&CU.role==='tech';
+  var isMgr=CU&&CU.role==='mgr';
   var allOpen=SS_WOS.filter(function(w){return!w.paid&&!CLAIMED_WOS.find(function(c){return c.id===w.id;});});
-  // SA sees only their location's WOs
-  var open=isSA?allOpen.filter(function(w){return w.loc===CU.loc;}):allOpen;
+  // Filter by location: techs see their location (WS=HYD010/South, WM=HYD020/North)
+  // Managers see their location only. SA sees their location only.
+  // Admin and Management see all.
+  var myLoc=CU?CU.loc:'';
+  var open=(isTech||isMgr||isSA)&&myLoc?allOpen.filter(function(w){return w.loc===myLoc;}):allOpen;
   var claimed=SS_WOS.filter(function(w){return CLAIMED_WOS.find(function(c){return c.id===w.id&&c.claimedBy===(CU?CU.name:'');});});
   document.getElementById('wo-cnt').textContent=open.length;
   openEl.innerHTML=open.length?open.slice(0,30).map(function(w){
