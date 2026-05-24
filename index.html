@@ -580,6 +580,7 @@ tr.clickable:hover td{background:#FFF3EC;cursor:pointer}
   <div class="t-flex"></div>
   <div style="display:flex;gap:5px;align-items:center">
     <span class="ibadge ss" id="data-loaded-badge" style="display:none">WO Data Loaded</span>
+    <span class="ibadge" id="api-badge" style="display:none;background:#1a73e8;color:#fff;border-color:#1557b0">&#9729; Drive</span>
     <span id="loc-badge-top" style="display:none;font-size:9px;padding:2px 7px;border-radius:4px;font-weight:700"></span>
   </div>
   <div class="t-user" style="margin-left:8px">
@@ -1042,7 +1043,14 @@ function getSALocation(n){return n==='Stew'?'HYD010':n==='Bryan'?'HYD020':'';}
 function getSALocation(n){return n==='Stew'?'HYD010':n==='Bryan'?'HYD020':'';}
 function getMgrForTech(t){var l=getTechLocation(t);return l&&LOCATIONS[l]?LOCATIONS[l].mgr:'';}
 function getClaim(id){return CLAIMS.find(function(c){return c.id===id;});}
-function updateClaimStatus(id,s,sl,ex){var c=getClaim(id);if(!c)return;c.s=s;c.sl=sl;if(ex)Object.assign(c,ex);refreshAll();}
+function updateClaimStatus(id,s,sl,ex){
+  var c=getClaim(id);if(!c)return;
+  c.s=s;c.sl=sl;
+  if(ex)Object.assign(c,ex);
+  refreshAll();
+  // Persist status to Sheets
+  apiPost('updateStatus',{id:id,s:s,sl:sl||''});
+}
 function refreshAll(){
   if(!CU)return;
   renderMyClaims();renderAllClaims();renderSubsTable();renderApprTable();renderIRList();renderTaskList();renderReconQueue();renderMyBanner();renderTechPerf();updateValidityCounts();
@@ -1140,35 +1148,87 @@ async function doDirectLogin(){
   var loadMsg=document.getElementById('csv-load-msg');
   loadDiv.style.display='flex';
   progBar.style.background='var(--or)';
-  loadMsg.textContent='Loading work order data...';
-  progBar.style.width='10%';
-  var success=false;
-  for(var attempt=1;attempt<=2;attempt++){
-    try{
-      if(attempt===2)loadMsg.textContent='Retrying connection...';
-      var timer=null;
-      var timeoutPromise=new Promise(function(_,reject){timer=setTimeout(function(){reject(new Error('Timeout'));},20000);});
-      await Promise.race([
-        loadCSVData(function(pct,msg){progBar.style.width=pct+'%';if(msg)loadMsg.textContent=msg;}),
-        timeoutPromise
-      ]);
-      clearTimeout(timer);success=true;break;
-    }catch(e){
-      clearTimeout(timer);
-      if(attempt<2){loadMsg.textContent='Connection slow - retrying...';progBar.style.width='5%';await new Promise(function(r){setTimeout(r,1000);});}
+  loadMsg.textContent='Loading work orders from Drive...';
+  progBar.style.width='15%';
+
+  // Step 1: Try loading WOs from Google Sheets (API) — fastest, most up to date
+  var apiWOs=null;
+  try{
+    loadMsg.textContent='Connecting to Google Drive...';
+    progBar.style.width='30%';
+    apiWOs=await apiGet('getWOs',{});
+    if(apiWOs&&apiWOs.length){
+      progBar.style.width='60%';
+      loadMsg.textContent='Processing '+apiWOs.length+' work orders...';
+      SS_WOS=apiWOs.filter(function(w){return w.status==='O';});
+      ARCHIVE_CLAIMS=apiWOs.filter(function(w){return w.status==='C'||w.status==='R';}).map(function(w){
+        return{id:w.id,cust:w.cust,loc:w.loc,en:w.make+' '+w.model,es:'',
+          oem:w.oem,oemCode:w.oemCode||w.code||'',tech:'',soldBy:w.soldBy||'',
+          oemClaimNum:'',recovered:w.amount||0,claimAmt:w.amount||0,
+          partsAmt:w.partsAmt||0,labourAmt:w.labourAmt||0,otherAmt:w.otherAmt||0,
+          hrsReported:w.hrsReported||0,hrsBilled:w.hrsBilled||0,
+          closedDate:w.dateClosed||'',dateOpened:w.dateOpened||'',
+          daysToClose:w.daysToClose||0,ageDays:w.ageDays||0,
+          adminComments:[],editLog:[],driveFolder:''};
+      });
+      console.log('API WOs loaded:',SS_WOS.length,'open,',ARCHIVE_CLAIMS.length,'closed');
     }
+  }catch(e){console.warn('API WO load failed:',e);}
+
+  // Step 2: If API had no WOs, try importing from Drive CSV
+  if(!apiWOs||!apiWOs.length){
+    try{
+      loadMsg.textContent='Importing CSV from Drive...';
+      progBar.style.width='40%';
+      var importResult=await apiPost('importCSV',{});
+      if(importResult&&importResult.ok){
+        loadMsg.textContent='Imported '+importResult.open+' open WOs from Drive';
+        // Now load the freshly imported data
+        var freshWOs=await apiGet('getWOs',{});
+        if(freshWOs&&freshWOs.length){
+          SS_WOS=freshWOs.filter(function(w){return w.status==='O';});
+          ARCHIVE_CLAIMS=freshWOs.filter(function(w){return w.status==='C';}).map(function(w){
+            return{id:w.id,cust:w.cust,loc:w.loc,en:w.make+' '+w.model,es:'',
+              oem:w.oem,oemCode:w.oemCode||w.code||'',tech:'',soldBy:w.soldBy||'',
+              oemClaimNum:'',recovered:w.amount||0,claimAmt:w.amount||0,
+              partsAmt:w.partsAmt||0,labourAmt:w.labourAmt||0,otherAmt:w.otherAmt||0,
+              hrsReported:w.hrsReported||0,hrsBilled:w.hrsBilled||0,
+              closedDate:w.dateClosed||'',dateOpened:w.dateOpened||'',
+              daysToClose:w.daysToClose||0,ageDays:w.ageDays||0,
+              adminComments:[],editLog:[],driveFolder:''};
+          });
+        }
+      }
+    }catch(e){console.warn('Drive import failed:',e);}
   }
-  if(!success){
-    progBar.style.background='var(--rd)';progBar.style.width='100%';
-    loadMsg.innerHTML='Could not load work order data.<br><span style="font-size:10px">Check your internet connection.</span>';
-    var btnWrap=document.createElement('div');btnWrap.style.cssText='display:flex;gap:8px;margin-top:14px;justify-content:center';
-    btnWrap.innerHTML='<button onclick="document.getElementById(\'csv-loading\').style.display=\'none\';doDirectLogin()" style="padding:8px 16px;background:var(--or);color:#fff;border:none;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;font-family:Inter,sans-serif">Retry</button>'+
-      '<button onclick="document.getElementById(\'csv-loading\').style.display=\'none\';completeLoginDirect(\''+name+'\')" style="padding:8px 16px;background:#333;color:#aaa;border:none;border-radius:7px;font-size:12px;cursor:pointer;font-family:Inter,sans-serif">Continue without data</button>';
-    var box=loadDiv.querySelector('.pin-box');var old=box.querySelector('.csv-btn-wrap');if(old)old.remove();
-    btnWrap.className='csv-btn-wrap';box.appendChild(btnWrap);
-    return;
+
+  // Step 3: Last resort — embedded CSV data
+  if(!SS_WOS.length&&!ARCHIVE_CLAIMS.length){
+    try{
+      loadMsg.textContent='Loading from cached data...';
+      await loadCSVData(function(pct,msg){progBar.style.width=pct+'%';if(msg)loadMsg.textContent=msg;});
+    }catch(e){console.warn('Embedded CSV failed:',e);}
   }
+
+  progBar.style.width='85%';
   var dlb=document.getElementById('data-loaded-badge');if(dlb)dlb.style.display='inline-flex';
+  // Load persisted data from Sheets (overlays CSV)
+  try{
+    loadMsg.textContent='Loading saved data...';
+    var apiResults=await Promise.all([apiGet('getClaims',{}),apiGet('getArchive',{}),apiGet('getRecon',{})]);
+    if(apiResults[0]&&apiResults[0].length){CLAIMS=apiResults[0];console.log('API claims:',CLAIMS.length);}
+    if(apiResults[1]&&apiResults[1].length){
+      var ids=apiResults[1].map(function(r){return r.id;});
+      ARCHIVE_CLAIMS=ARCHIVE_CLAIMS.filter(function(r){return ids.indexOf(r.id)<0;}).concat(apiResults[1]);
+      console.log('API archive:',apiResults[1].length);
+    }
+    if(apiResults[2]&&apiResults[2].length){RECON_HISTORY=apiResults[2];console.log('API recon:',apiResults[2].length);}
+    // Sync open WOs to Sheet in background (don't await)
+    if(SS_WOS.length){
+      var woBatch=SS_WOS.map(function(w){return{id:w.id,cust:w.cust,loc:w.loc,make:w.make||'',model:w.model||'',serial:w.serial||'',oem:w.oem||'',oemCode:w.code||'',code:w.code||'',desc:w.desc||'',status:'O',dateOpened:w.dateOpened||'',ageDays:w.ageDays||0,soldBy:w.soldBy||'',amount:w.amount||0,partsAmt:w.partsAmt||0,labourAmt:w.labourAmt||0,otherAmt:w.otherAmt||0,hrsReported:w.hrsReported||0,hrsBilled:w.hrsBilled||0};});
+      apiPost('saveWOs',{wos:woBatch}).then(function(r){if(r)console.log('WOs synced:',r);});
+    }
+  }catch(e){console.warn('API load:',e);}
   loadDiv.style.display='none';
   completeLogin(name);
 }
@@ -1187,6 +1247,13 @@ function completeLogin(name){
   document.getElementById('lo').style.display='none';
   document.getElementById('app').style.display='grid';
   setupUI();
+  // Show Drive connected badge if API is responsive
+  setTimeout(function(){
+    apiGet('ping',{}).then(function(r){
+      var b=document.getElementById('api-badge');
+      if(r&&r.ok&&b){b.style.display='inline-flex';b.textContent='&#9729; Drive ✓';}
+    });
+  },2000);
 }
 
 function signOut(){
@@ -1271,6 +1338,33 @@ var CLAIM_EDIT_LOG={};
 
 // ── CSV LOADER ─────────────────────────────────────────────────────
 var CSV_URL='./warranty_data.csv';
+
+// ── APPS SCRIPT BACKEND ─────────────────────────────────────────────
+var API_URL='https://script.google.com/macros/s/AKfycbxtyn8muA_DCMpAYrouBG5d1ATBCTfYP_gcGovj7ZsnuNHRVoBWaA36BuB8PtfqRrM8lg/exec';
+var _apiOK=false; // true once first ping succeeds
+
+async function api(action,params,method){
+  params=params||{};params.action=action;
+  try{
+    var resp;
+    if(method==='GET'){
+      var qs=Object.keys(params).map(function(k){return encodeURIComponent(k)+'='+encodeURIComponent(typeof params[k]==='object'?JSON.stringify(params[k]):params[k]);}).join('&');
+      resp=await fetch(API_URL+'?'+qs);
+    }else{
+      resp=await fetch(API_URL,{method:'POST',body:JSON.stringify(params),headers:{'Content-Type':'text/plain'}});
+    }
+    if(!resp.ok)throw new Error('HTTP '+resp.status);
+    var r=await resp.json();
+    if(!r.success)throw new Error(r.error||'API error');
+    _apiOK=true;
+    return r.data;
+  }catch(e){
+    console.warn('API ['+action+']:',e.message);
+    return null;
+  }
+}
+function apiPost(action,p){return api(action,p,'POST');}
+function apiGet(action,p){return api(action,p,'GET');}
 var CSV_URL_FALLBACK='https://raw.githubusercontent.com/AdamMason00/hpe-warranty/refs/heads/main/warranty_data.csv';
 var CSV_URL_FALLBACK2='https://raw.githubusercontent.com/AdamMason00/hpe-warranty/main/warranty_data.csv';
 // Embedded CSV data — no fetch needed
@@ -1846,7 +1940,9 @@ function renderReconDMSRows(items){
 }
 function filterReconDMS(q){var f=q.toLowerCase();var items=ARCHIVE_CLAIMS.filter(function(c){var mo=!c.oemClaimNum||c.oemClaimNum.trim()==='';var ma=!c.adminComments||c.adminComments.length===0;if(!mo&&!ma)return false;return c.id.toLowerCase().includes(f)||c.cust.toLowerCase().includes(f)||c.oem.toLowerCase().includes(f)||(c.soldBy||'').toLowerCase().includes(f);});var tb=document.getElementById('recon-dms-body');if(tb)tb.innerHTML=renderReconDMSRows(items);}
 function filterReconDMSType(type,btn){document.querySelectorAll('#rdms-all,#rdms-oem,#rdms-admin').forEach(function(b){b.classList.remove('on');});if(btn)btn.classList.add('on');var items=ARCHIVE_CLAIMS.filter(function(c){var mo=!c.oemClaimNum||c.oemClaimNum.trim()==='';var ma=!c.adminComments||c.adminComments.length===0;if(type==='oem')return mo;if(type==='admin')return ma;return mo||ma;});var tb=document.getElementById('recon-dms-body');if(tb)tb.innerHTML=renderReconDMSRows(items);}
-function saveDMSOEMNum(id){var inp=document.getElementById('rdms-oem-'+id);if(!inp||!inp.value.trim()){showToast('Enter an OEM claim number first');return;}var c=ARCHIVE_CLAIMS.find(function(x){return x.id===id;});if(!c)return;c.oemClaimNum=inp.value.trim();inp.style.borderColor='var(--gn)';showToast('OEM claim # saved for '+id);setTimeout(renderReconDMSQueue,300);}
+function saveDMSOEMNum(id){var inp=document.getElementById('rdms-oem-'+id);if(!inp||!inp.value.trim()){showToast('Enter an OEM claim number first');return;}var c=ARCHIVE_CLAIMS.find(function(x){return x.id===id;});if(!c)return;c.oemClaimNum=inp.value.trim();inp.style.borderColor='var(--gn)';
+  apiPost('saveOEMNum',{id:id,oemClaimNum:c.oemClaimNum});
+  showToast('OEM claim # saved for '+id);setTimeout(renderReconDMSQueue,300);}
 function openDMSNote(id){var c=ARCHIVE_CLAIMS.find(function(x){return x.id===id;});window._commentClaimId=id;document.getElementById('notes-modal-s').textContent='Add note to '+id+(c?' - '+c.cust:'');var existing=document.getElementById('existing-notes');var coms=c&&c.adminComments?c.adminComments:[];existing.innerHTML=coms.length?coms.map(function(cm){return'<div class="admin-comment"><div class="admin-comment-hd">'+cm.date+'</div><div class="admin-comment-txt">'+cm.text+'</div></div>';}).join(''):'<div style="font-size:11px;color:var(--gl);font-style:italic">No notes yet.</div>';document.getElementById('new-note').value='';document.getElementById('notes-modal').classList.add('open');}
 
 function renderReconQueue(){
@@ -1878,7 +1974,8 @@ function saveCredit(id){
   var today=new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
   var status=variance>10?'FLAGGED':'CLOSED';
   // Add to reconciliation history
-  RECON_HISTORY.unshift({
+  var reconRecord={
+   
     claimId:id,
     oemClaimNum:c.oemClaimNum||cn,
     oem:c.oem,
@@ -1889,9 +1986,11 @@ function saveCredit(id){
     variance:parseFloat(variance.toFixed(1)),
     closedDate:today,
     status:status
-  });
+  };
+  RECON_HISTORY.unshift(reconRecord);
+  apiPost('saveRecon',{recon:reconRecord});
   // Move claim to ARCHIVE_CLAIMS
-  ARCHIVE_CLAIMS.unshift({
+  var archiveRec={
     id:id,cust:c.cust,phone:c.phone||'',en:c.en,es:c.es,
     oem:c.oem,oemCode:c.oemCode||'',tech:c.tech,loc:c.loc,
     oemClaimNum:c.oemClaimNum||cn,recovered:parseFloat(crInclHST.toFixed(2)),
@@ -1899,7 +1998,9 @@ function saveCredit(id){
     partStorage:c.partStorage||'',disposeDate:c.disposeDate||'',
     adminComments:c.adminComments||[],editLog:c.editLog||[],
     driveFolder:'Warranty Claims/'+id,aiScore:c.aiScore||null
-  });
+  };
+  ARCHIVE_CLAIMS.unshift(archiveRec);
+  apiPost('archiveClaim',{archive:archiveRec});
   updateClaimStatus(id,'cls','CLOSED');
   renderReconHistory();renderArchive();renderReconDMSQueue();
   if(status==='FLAGGED')showToast(id+' closed - FLAGGED: variance exceeds 10% - service manager notified');
@@ -2048,7 +2149,17 @@ function submitOEMClaim(){var cn=document.getElementById('oem-cn').value.trim();
 function openRejPanel(id,eq){document.getElementById('rej-modal-s').textContent=id+'  -  '+eq;['rej-reason','rej-new-cn','rej-notes'].forEach(function(i){var el=document.getElementById(i);if(el)el.value='';});document.getElementById('rej-modal').classList.add('open');}
 function handleRejection(){var act=document.getElementById('rej-action').value;if(!act){showToast('Select an action');return;}closeModal('rej-modal');showToast('Rejection handled: '+act);}
 function openNotesModal(id){document.getElementById('notes-modal-s').textContent='Notes for '+id;document.getElementById('existing-notes').innerHTML='<div style="background:var(--gbg);padding:8px 10px;border-radius:6px;font-size:11px;margin-bottom:6px"><div style="font-size:9px;color:var(--gl);margin-bottom:2px">Service Manager  -  Apr 22</div>Spoke with tech about diagnostic file.</div>';document.getElementById('new-note').value='';document.getElementById('notes-modal').classList.add('open');}
-function saveNote(){var n=document.getElementById('new-note').value.trim();if(!n){showToast('Note empty');return;}closeModal('notes-modal');showToast('Note saved');}
+function saveNote(){
+  var n=document.getElementById('new-note').value.trim();if(!n){showToast('Note empty');return;};
+  var id=window._commentClaimId;
+  // Persist to Sheets
+  apiPost('saveNote',{claimId:id,author:CU?CU.name:'Admin',role:CU?CU.role:'admin',text:n,type:'admin'});
+  // Update local adminComments on archive record if it exists
+  if(id){
+    var arc=ARCHIVE_CLAIMS.find(function(x){return x.id===id;});
+    if(arc){if(!arc.adminComments)arc.adminComments=[];arc.adminComments.push({date:new Date().toLocaleDateString(),text:n,author:CU?CU.name:'Admin'});}
+  }
+  closeModal('notes-modal');showToast('Note saved');}
 
 function renderDashboard(){
   var dc=document.getElementById('dash-content');
@@ -2491,6 +2602,8 @@ function ncFinalSubmit(){
     aiEdits:{complaint:complaint,cause:cause,correction:correction},
     complaint:complaint,cause:cause,correction:correction
   });
+  var _savedClaim=CLAIMS[CLAIMS.length-1];
+  apiPost('saveClaim',{claim:_savedClaim}).then(function(r){if(r)console.log('Claim saved to Drive:',r.id);});
   document.getElementById('nc-c').innerHTML=
     '<div style="text-align:center;padding:36px 18px">'+
       '<div style="font-size:46px;margin-bottom:12px">&#10003;</div>'+
@@ -3571,6 +3684,23 @@ function muSaveStaged(){
 }
 window.addEventListener('load',function(){if(window.location.hash==='#upload')openMobileUpload();});
 window.addEventListener('hashchange',function(){if(window.location.hash==='#upload')openMobileUpload();else{var el=document.getElementById('pg-mobile-upload');if(el&&el.style.display!=='none')closeMobileUpload();}});
+
+async function refreshWOsFromDrive(){
+  showToast('Importing latest WOs from Drive...');
+  var result=await apiPost('importCSV',{});
+  if(result&&result.ok){
+    showToast('Imported: '+result.open+' open, '+result.closed+' closed WOs');
+    // Reload WOs from Sheet
+    var wos=await apiGet('getWOs',{});
+    if(wos&&wos.length){
+      SS_WOS=wos.filter(function(w){return w.status==='O';});
+      renderWOList();
+      var cnt=document.getElementById('wo-cnt');if(cnt)cnt.textContent=SS_WOS.length;
+    }
+  } else {
+    showToast('Import failed - check Drive folder has a CSV file');
+  }
+}
 
 function showToast(m){var t=document.getElementById('toast');t.textContent=m;t.classList.add('show');setTimeout(function(){t.classList.remove('show');},2700);}
 
