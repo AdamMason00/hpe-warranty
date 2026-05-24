@@ -1294,6 +1294,7 @@ function setupUI(){
   document.getElementById('ni-my').style.display=isSA?'none':'flex';
   document.getElementById('ni-all').style.display=hideFromTechFinance?'none':'flex';
   document.getElementById('ni-inspect').style.display=hideFromTechFinance?'none':'flex';
+  loadClaimedWOs();
   initWOReviewStatus();refreshAll();renderWOList();renderOEMTable();renderStaffAssignment();renderDashboard();renderTechPerf();if(CU.role==='admin'){updateValidityCounts();}
   var startPage=(CU.role==='mgr'||CU.role==='mgmt')?'dashboard':isSA?'wo':'my';
   var startEl=(CU.role==='mgr'||CU.role==='mgmt')?document.getElementById('ni-dash'):isSA?document.getElementById('ni-wo'):document.getElementById('ni-my');
@@ -1719,7 +1720,7 @@ function getMyClaims(){
   if(!CU)return[];
   if(CU.role==='tech')return CLAIMS.filter(function(c){return c.tech===CU.name;});
   if(CU.role==='finance')return CLAIMS.filter(function(c){return c.s==='pay';});
-  if(CU.role==='mgr')return filterByLocation(CLAIMS);
+  if(CU.role==='mgr'){var mLoc=getMgrLocation(CU.name);return CLAIMS.filter(function(c){return c.loc===mLoc;});}
   if(CU.role==='sa')return[]; // SA doesn't have claims
   return CLAIMS;
 }
@@ -1738,7 +1739,9 @@ function renderMyBanner(){
   if(CU.role==='admin'){renderAdminOverview();return;}
   if(CU.role==='sa')return; // SA has no My Claims page
   var _s=function(id,v){var el=document.getElementById(id);if(el)el.textContent=v;};
-  _s('mcb-n',CU.role==='tech'?CU.name+"'s Claims":CU.role==='finance'?'Pending Payment':'All Claims');
+  var _mgrLoc=CU.role==='mgr'?(getMgrLocation(CU.name)==='HYD020'?' — North':' — South'):'';
+  var _pgTitle=CU.role==='tech'?CU.name+"'s Claims":CU.role==='finance'?'Pending Payment':CU.role==='mgr'?CU.name+"'s Claims"+_mgrLoc:'All Claims';
+  _s('mcb-n',_pgTitle);
   _s('mcb-a',m.filter(function(c){return['new','ins','appr'].includes(c.s);}).length);
   _s('mcb-s',m.filter(function(c){return['sub','oem'].includes(c.s);}).length);
   _s('mcb-ap',m.filter(function(c){return['app','pay'].includes(c.s);}).length);
@@ -1747,7 +1750,7 @@ function renderMyBanner(){
   var myOpenIRs=CU.role==='tech'?CLAIMS.filter(function(c){return c.tech===CU.name&&c.info;}).length:0;
   var irBadge=document.getElementById('my-ir-badge');
   if(irBadge){irBadge.textContent=myOpenIRs;irBadge.style.display=myOpenIRs>0?'inline-flex':'none';}
-  _s('my-pt',CU.role==='tech'?CU.name+"'s Claims":CU.role==='finance'?'Pending Payment':'All Claims');
+  _s('my-pt',_pgTitle);
   _s('my-tt',CU.role==='finance'?'Claims awaiting credit entry':'Active claims');
   renderAgeAlerts(m,'my-age-alerts');
   var irsec=document.getElementById('my-ir-sec');if(!irsec)return;
@@ -2039,7 +2042,34 @@ function openSANotesPanel(woId){
   document.getElementById('notes-modal').classList.add('open');
   window._commentClaimId=woId;
 }
-function claimWO(id){CLAIMED_WOS.push({id:id,claimedBy:CU?CU.name:''});renderWOList();showToast(id+' claimed');}
+function claimWO(id){
+  // Mark as claimed
+  if(!CLAIMED_WOS.find(function(c){return c.id===id;})){
+    CLAIMED_WOS.push({id:id,claimedBy:CU?CU.name:'',ts:Date.now()});
+    saveClaimedWOs();
+  }
+  // Immediately open the claim form pre-filled
+  var w=SS_WOS.find(function(x){return x.id===id;});
+  if(w){window._prefillWO=w;window._manualMode=false;}
+  nav('claim',document.getElementById('ni-nc'));
+  showToast('WO '+id+' claimed — fill in the form below');
+}
+
+function saveClaimedWOs(){
+  try{localStorage.setItem('hpe_claimed_'+( CU?CU.name:''),JSON.stringify(CLAIMED_WOS));}catch(e){}
+}
+
+function loadClaimedWOs(){
+  try{
+    var stored=localStorage.getItem('hpe_claimed_'+(CU?CU.name:''));
+    if(stored){
+      var parsed=JSON.parse(stored);
+      // Only restore WOs that are still open in SS_WOS
+      var openIds=SS_WOS.map(function(w){return w.id;});
+      CLAIMED_WOS=parsed.filter(function(c){return openIds.indexOf(c.id)>=0;});
+    }
+  }catch(e){}
+}
 function openSANoteForWO(id){var w=SS_WOS.find(function(x){return x.id===id;});window._commentClaimId=id;document.getElementById('notes-modal-s').textContent='Add note to '+id+(w?' - '+w.cust:'');document.getElementById('existing-notes').innerHTML='<div style="font-size:11px;color:var(--gl);font-style:italic">No notes yet.</div>';document.getElementById('new-note').value='';document.getElementById('notes-modal').classList.add('open');}
 function startClaimFromWO(id){var w=SS_WOS.find(function(x){return x.id===id;});if(!w)return;window._prefillWO=w;window._manualMode=false;nav('claim',document.getElementById('ni-nc'));}
 
@@ -2599,6 +2629,9 @@ function ncFinalSubmit(){
       '<button class="btn b-or" onclick="nav(\'my\',document.getElementById(\'ni-my\'))" style="font-size:12px;padding:9px 18px">View My Claims</button>'+
     '</div>';
   document.getElementById('nc-nav').style.display='none';
+  // Remove from claimed list now that it's submitted
+  CLAIMED_WOS=CLAIMED_WOS.filter(function(w){return w.id!==ref;});
+  saveClaimedWOs();
   ncCur=0;ncCov='';ncPh=Array(5).fill(false);ncFiles=Array(5).fill(null);ncExtraFiles=[];ncMed=0;ncData={};window._prefillWO=null;window._manualMode=false;
   refreshAll();showToast('Submitted: '+ref);
 }
