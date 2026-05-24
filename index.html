@@ -1325,7 +1325,8 @@ var CLAIM_EDIT_LOG={};
 var CSV_URL='./warranty_data.csv';
 
 // ── APPS SCRIPT BACKEND ─────────────────────────────────────────────
-var API_URL='https://script.google.com/macros/s/AKfycbxtyn8muA_DCMpAYrouBG5d1ATBCTfYP_gcGovj7ZsnuNHRVoBWaA36BuB8PtfqRrM8lg/exec';
+var PHOTOS_FOLDER_ID='1kbsKqfQp-Ms4YqwOtWxD2p3JYTiPEUu5'; // Shared Warranty Claims folder
+var API_URL='https://script.google.com/macros/s/AKfycbyIuygjcMrlgOaBZ2scB58peyez4vOom_KMPz8Ku_uIAkZHaRPHboWrXiHaaA6mAwN2/exec';
 var _apiOK=false; // true once first ping succeeds
 
 async function api(action,params,method){
@@ -2170,35 +2171,35 @@ function openDP(id){
       '<div style="margin-bottom:8px"><div style="font-size:9px;font-weight:700;color:var(--or);text-transform:uppercase;margin-bottom:4px">Complaint  -  AI Improved</div><div style="font-size:11px;color:var(--gt);background:rgba(37,99,235,.06);padding:7px 9px;border-radius:6px;border:1px solid #b0cce8;line-height:1.5">'+c.aiEdits.complaint+'</div></div>'+
     '</div>';
   }
-  // Photos section — visible to Admin and Manager
-  if((CU.role==='admin'||CU.role==='mgr'||CU.role==='mgmt')&&c&&c.photos&&c.photos.length){
-    body+='<div class="dp-s"><div class="dp-st">Photos ('+c.photos.length+')</div>';
+  // Photos section — visible to all roles, Add Photos for admin/mgr/mgmt/sa
+  var _canAddPhotos=CU&&(CU.role==='admin'||CU.role==='mgr'||CU.role==='mgmt'||CU.role==='sa');
+  var _canViewPhotos=CU&&CU.role!=='tech'; // Techs see their own photos via form
+  if(c&&c.photos&&c.photos.length){
+    body+='<div class="dp-s"><div class="dp-st" style="display:flex;align-items:center;justify-content:space-between">'+
+      '<span>Photos ('+c.photos.length+')</span>'+
+      (_canAddPhotos?'<label style="cursor:pointer;display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:600;color:var(--bl);padding:4px 9px;border:1.5px solid var(--bl);border-radius:6px">'+
+        '<input type="file" accept="image/*" multiple style="display:none" onchange="addPhotosToClaimFromDP(\''+c.id+'\',this)">'+
+        '&#43; Add Photos</label>':'')+
+      '</div>';
     body+='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;margin-bottom:0">';
     c.photos.forEach(function(ph){
       body+='<div style="background:#F8F8F7;border:1px solid var(--gbd);border-radius:7px;overflow:hidden">';
-      body+='<img src="'+ph.dataUrl+'" style="width:100%;height:90px;object-fit:cover;display:block" alt="'+ph.name+'">';
-      body+='<div style="padding:5px 7px;display:flex;align-items:center;justify-content:space-between">';
+      body+='<img src="'+ph.dataUrl+'" style="width:100%;height:90px;object-fit:cover;display:block" alt="'+ph.name+'" onerror="this.style.display=\'none\'">'+
+      '<div style="padding:5px 7px;display:flex;align-items:center;justify-content:space-between">';
       body+='<span style="font-size:9px;color:var(--gt);font-weight:600">'+ph.name.replace(/_/g,' ')+'</span>';
       body+='<button onclick="downloadPhoto(\''+ph.dataUrl+'\',\''+ph.fileName+'\')" style="background:none;border:none;cursor:pointer;font-size:13px;padding:0" title="Download '+ph.fileName+'">&#11015;</button>';
       body+='</div></div>';
     });
-    body+='</div>';
-    // Add photo button for Admin
-    if(CU.role==='admin'){
-      body+='<div style="margin-top:8px"><label style="cursor:pointer;display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;color:var(--bl);padding:5px 10px;border:1.5px solid var(--bl);border-radius:6px">'+
+    body+='</div></div>';
+  } else if(_canAddPhotos){
+    body+='<div class="dp-s"><div class="dp-st" style="display:flex;align-items:center;justify-content:space-between">'+
+      '<span>Photos</span>'+
+      '<label style="cursor:pointer;display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:600;color:var(--bl);padding:4px 9px;border:1.5px solid var(--bl);border-radius:6px">'+
         '<input type="file" accept="image/*" multiple style="display:none" onchange="addPhotosToClaimFromDP(\''+c.id+'\',this)">'+
-        '&#43; Add Photos</label></div>';
-    }
-    body+="</div>";
-  } else if((CU.role==='admin'||CU.role==='mgr'||CU.role==='mgmt')&&c){
-    body+='<div class="dp-s"><div class="dp-st">Photos</div>'+
-      '<div class="an warn">No photos attached to this claim yet.</div>';
-    if(CU.role==='admin'){
-      body+='<label style="cursor:pointer;display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;color:var(--bl);padding:5px 10px;border:1.5px solid var(--bl);border-radius:6px">'+
-        '<input type="file" accept="image/*" multiple style="display:none" onchange="addPhotosToClaimFromDP(\''+c.id+'\',this)">'+
-        '&#43; Add Photos</label>';
-    }
-    body+="</div>";
+        '&#43; Add Photos</label>'+
+      '</div>'+
+      '<div class="an warn">No photos yet. Upload above — saves to Drive: Warranty Claims / '+c.id+' /</div>'+
+      '</div>';
   }
     body+='<div class="dp-s"><div class="dp-st">Three Cs</div><div style="margin-bottom:7px;padding:7px 9px;background:var(--orl);border-radius:6px;border-left:3px solid var(--or)"><div style="font-size:9px;font-weight:700;color:var(--or);text-transform:uppercase;margin-bottom:2px">Complaint</div><div style="font-size:11px;color:var(--gt)">'+(c&&c.es?c.es:'No complaint recorded.')+'</div></div><div style="margin-bottom:7px;padding:7px 9px;background:var(--bll);border-radius:6px;border-left:3px solid var(--bl)"><div style="font-size:9px;font-weight:700;color:var(--bl);text-transform:uppercase;margin-bottom:2px">Cause</div><div style="font-size:11px;color:var(--gt)">Engineering confirmed design issue with belt kit pulley alignment.</div></div><div style="padding:7px 9px;background:var(--gnl);border-radius:6px;border-left:3px solid var(--gn)"><div style="font-size:9px;font-weight:700;color:var(--gn);text-transform:uppercase;margin-bottom:2px">Correction</div><div style="font-size:11px;color:var(--gt)">Installed OEM factory belt kit. Replaced alternator pulley. Confirmed correct alignment.</div></div></div>';
   document.getElementById('dp-body').innerHTML=body;
@@ -3995,7 +3996,7 @@ async function uploadClaimPhotos(claimId,files){
       // Upload to Drive
       var b64Data=b64.split(',')[1];
       apiPost('uploadPhoto',{
-        claimId:claimId,base64:b64Data,
+        claimId:claimId,folderId:PHOTOS_FOLDER_ID,base64:b64Data,
         mimeType:files[i].type||'image/jpeg',fileName:fileName
       }).then(function(r){if(r&&r.ok)console.log('Photo uploaded to Drive:',r.fileName);});
     }catch(e){console.warn('Photo upload failed for slot',i,e);}
@@ -4017,7 +4018,7 @@ function addPhotosToClaimFromDP(claimId, inp){
     fileToBase64(file).then(function(dataUrl){
       cl.photos.push({slot:slotIdx,name:slotName,fileName:fileName,dataUrl:dataUrl});
       // Upload to Drive
-      apiPost('uploadPhoto',{claimId:claimId,base64:dataUrl.split(',')[1],
+      apiPost('uploadPhoto',{claimId:claimId,folderId:PHOTOS_FOLDER_ID,base64:dataUrl.split(',')[1],
         mimeType:file.type||'image/jpeg',fileName:fileName});
       apiPost('saveClaim',{claim:cl});
       showToast('Photo added: '+fileName);
