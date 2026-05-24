@@ -1151,18 +1151,24 @@ async function doDirectLogin(){
   loadMsg.textContent='Loading work orders from Drive...';
   progBar.style.width='15%';
 
-  // Step 1: Try loading WOs from Google Sheets (API) — fastest, most up to date
-  var apiWOs=null;
+  // Step 1: Load embedded CSV first — guaranteed baseline
   try{
-    loadMsg.textContent='Connecting to Google Drive...';
-    progBar.style.width='30%';
-    apiWOs=await apiGet('getWOs',{});
+    loadMsg.textContent='Loading work order data...';
+    progBar.style.width='20%';
+    await loadCSVData(function(pct,msg){progBar.style.width=20+Math.round(pct*0.4)+'%';if(msg)loadMsg.textContent=msg;});
+    console.log('Embedded CSV: SS_WOS=',SS_WOS.length,'ARCHIVE=',ARCHIVE_CLAIMS.length);
+  }catch(e){console.warn('Embedded CSV failed:',e);}
+
+  // Step 2: Try API — overlay with fresh Sheets data if available
+  try{
+    loadMsg.textContent='Checking Drive for updates...';
+    progBar.style.width='65%';
+    var apiWOs=await apiGet('getWOs',{});
     if(apiWOs&&apiWOs.length){
-      progBar.style.width='60%';
-      loadMsg.textContent='Processing '+apiWOs.length+' work orders...';
+      // API has WOs — use them instead of embedded data
       SS_WOS=apiWOs.filter(function(w){return w.status==='O';});
-      ARCHIVE_CLAIMS=apiWOs.filter(function(w){return w.status==='C'||w.status==='R';}).map(function(w){
-        return{id:w.id,cust:w.cust,loc:w.loc,en:w.make+' '+w.model,es:'',
+      var apiClosed=apiWOs.filter(function(w){return w.status==='C'||w.status==='R';}).map(function(w){
+        return{id:w.id,cust:w.cust,loc:w.loc,en:(w.make+' '+w.model).trim(),es:'',
           oem:w.oem,oemCode:w.oemCode||w.code||'',tech:'',soldBy:w.soldBy||'',
           oemClaimNum:'',recovered:w.amount||0,claimAmt:w.amount||0,
           partsAmt:w.partsAmt||0,labourAmt:w.labourAmt||0,otherAmt:w.otherAmt||0,
@@ -1171,44 +1177,17 @@ async function doDirectLogin(){
           daysToClose:w.daysToClose||0,ageDays:w.ageDays||0,
           adminComments:[],editLog:[],driveFolder:''};
       });
-      console.log('API WOs loaded:',SS_WOS.length,'open,',ARCHIVE_CLAIMS.length,'closed');
+      // Merge: keep existing archive records with OEM claim numbers
+      var existingIds=ARCHIVE_CLAIMS.filter(function(r){return r.oemClaimNum;}).map(function(r){return r.id;});
+      ARCHIVE_CLAIMS=apiClosed.concat(ARCHIVE_CLAIMS.filter(function(r){return r.oemClaimNum&&existingIds.indexOf(r.id)<0;}));
+      console.log('API WOs: open=',SS_WOS.length,'closed=',apiClosed.length);
+    } else {
+      // API empty — trigger fresh import from Drive CSV in background
+      apiPost('importCSV',{}).then(function(r){
+        if(r&&r.ok)console.log('Drive import triggered:',r.open,'open,',r.closed,'closed WOs');
+      });
     }
-  }catch(e){console.warn('API WO load failed:',e);}
-
-  // Step 2: If API had no WOs, try importing from Drive CSV
-  if(!apiWOs||!apiWOs.length){
-    try{
-      loadMsg.textContent='Importing CSV from Drive...';
-      progBar.style.width='40%';
-      var importResult=await apiPost('importCSV',{});
-      if(importResult&&importResult.ok){
-        loadMsg.textContent='Imported '+importResult.open+' open WOs from Drive';
-        // Now load the freshly imported data
-        var freshWOs=await apiGet('getWOs',{});
-        if(freshWOs&&freshWOs.length){
-          SS_WOS=freshWOs.filter(function(w){return w.status==='O';});
-          ARCHIVE_CLAIMS=freshWOs.filter(function(w){return w.status==='C';}).map(function(w){
-            return{id:w.id,cust:w.cust,loc:w.loc,en:w.make+' '+w.model,es:'',
-              oem:w.oem,oemCode:w.oemCode||w.code||'',tech:'',soldBy:w.soldBy||'',
-              oemClaimNum:'',recovered:w.amount||0,claimAmt:w.amount||0,
-              partsAmt:w.partsAmt||0,labourAmt:w.labourAmt||0,otherAmt:w.otherAmt||0,
-              hrsReported:w.hrsReported||0,hrsBilled:w.hrsBilled||0,
-              closedDate:w.dateClosed||'',dateOpened:w.dateOpened||'',
-              daysToClose:w.daysToClose||0,ageDays:w.ageDays||0,
-              adminComments:[],editLog:[],driveFolder:''};
-          });
-        }
-      }
-    }catch(e){console.warn('Drive import failed:',e);}
-  }
-
-  // Step 3: Last resort — embedded CSV data
-  if(!SS_WOS.length&&!ARCHIVE_CLAIMS.length){
-    try{
-      loadMsg.textContent='Loading from cached data...';
-      await loadCSVData(function(pct,msg){progBar.style.width=pct+'%';if(msg)loadMsg.textContent=msg;});
-    }catch(e){console.warn('Embedded CSV failed:',e);}
-  }
+  }catch(e){console.warn('API WO overlay failed:',e);}
 
   progBar.style.width='85%';
   var dlb=document.getElementById('data-loaded-badge');if(dlb)dlb.style.display='inline-flex';
@@ -1251,7 +1230,7 @@ function completeLogin(name){
   setTimeout(function(){
     apiGet('ping',{}).then(function(r){
       var b=document.getElementById('api-badge');
-      if(r&&r.ok&&b){b.style.display='inline-flex';b.textContent='&#9729; Drive ✓';}
+      if(r&&r.ok&&b){b.style.display='inline-flex';b.innerHTML='&#9729; Drive &#10003;';}
     });
   },2000);
 }
