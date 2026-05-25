@@ -1200,7 +1200,7 @@ async function doDirectLogin(){
   try{
     loadMsg.textContent='Loading saved data...';
     var apiResults=await Promise.all([apiGet('getClaims',{}),apiGet('getArchive',{}),apiGet('getRecon',{})]);
-    if(apiResults[0]&&apiResults[0].length){CLAIMS=apiResults[0];console.log('API claims:',CLAIMS.length);}
+    if(apiResults[0]&&apiResults[0].length){CLAIMS=apiResults[0].filter(function(c){return c&&c.id;});console.log('API claims:',CLAIMS.length);}
     if(apiResults[1]&&apiResults[1].length){
       var ids=apiResults[1].map(function(r){return r.id;});
       ARCHIVE_CLAIMS=ARCHIVE_CLAIMS.filter(function(r){return ids.indexOf(r.id)<0;}).concat(apiResults[1]);
@@ -1725,7 +1725,7 @@ function dismissSuggestion(idx){
 // -- CLAIMS RENDERING ---------------------------------
 function getMyClaims(){
   if(!CU)return[];
-  if(CU.role==='tech')return CLAIMS.filter(function(c){return c.tech===CU.name;});
+  if(CU.role==='tech')return CLAIMS.filter(function(c){return c&&c.id&&c.tech===CU.name;});
   if(CU.role==='finance')return CLAIMS.filter(function(c){return c.s==='pay';});
   if(CU.role==='mgr'){var mLoc=getMgrLocation(CU.name);return CLAIMS.filter(function(c){return c.loc===mLoc;});}
   if(CU.role==='sa')return[]; // SA doesn't have claims
@@ -1789,10 +1789,10 @@ function renderAllClaims(d){
   var insEl=document.getElementById('all-inspect');if(insEl)insEl.textContent=data.filter(function(c){return c.s==='ins';}).length;
   if(!data.length){b.innerHTML='<tr><td colspan="8" style="text-align:center;padding:22px;color:var(--gl)">No active claims.</td></tr>';return;}
   b.innerHTML=data.map(function(c){var ac=ageClass(c.age);var al=ageLabel(c.age);
-    return'<tr class="clickable" onclick="openDP(\''+c.id+'\')"><td><span class="cid">'+c.id+'</span></td><td>'+c.cust+'</td><td><div class="en">'+c.en+'</div><div class="esub">'+c.es+'</div></td><td style="font-weight:500">'+(c.tech||'<span style="color:var(--gl)">Unassigned</span>')+' <span class="loc-badge loc-'+c.loc.toLowerCase()+'">'+c.loc+'</span></td><td>'+c.oem+'</td><td style="font-family:monospace;font-size:10px;color:var(--gl)">'+c.oemCode+'</td><td><span class="pill '+(PMAP[c.s]||'p-new')+'">'+c.sl+'</span></td><td><span class="'+ac+'">'+al+'</span></td></tr>';
+    return'<tr class="clickable" onclick="openDP(\''+c.id+'\')"><td><span class="cid">'+(c.id||'?')+'</span></td><td>'+(c.cust||'-')+'</td><td><div class="en">'+(c.en||'-')+'</div><div class="esub">'+(c.es||'')+'</div></td><td style="font-weight:500">'+(c.tech||'<span style="color:var(--gl)">Unassigned</span>')+' <span class="loc-badge loc-'+c.loc.toLowerCase()+'">'+c.loc+'</span></td><td>'+c.oem+'</td><td style="font-family:monospace;font-size:10px;color:var(--gl)">'+c.oemCode+'</td><td><span class="pill '+(PMAP[c.s]||'p-new')+'">'+c.sl+'</span></td><td><span class="'+ac+'">'+al+'</span></td></tr>';
   }).join('');
 }
-function filterAllC(q){var f=q.toLowerCase();var base=CU&&CU.role==='mgr'?filterByLocation(CLAIMS):CLAIMS;renderAllClaims(base.filter(function(c){return c.id.toLowerCase().includes(f)||c.en.toLowerCase().includes(f)||c.tech.toLowerCase().includes(f)||c.cust.toLowerCase().includes(f);}));}
+function filterAllC(q){var f=q.toLowerCase();var base=CU&&CU.role==='mgr'?filterByLocation(CLAIMS):CLAIMS;renderAllClaims(base.filter(function(c){return (c.id||'').toLowerCase().includes(f)||(c.en||'').toLowerCase().includes(f)||(c.tech||'').toLowerCase().includes(f)||(c.cust||'').toLowerCase().includes(f);}));}
 function filterAllS(s,btn){
   document.querySelectorAll('.fb').forEach(function(b){b.classList.remove('on');});btn.classList.add('on');
   var base=CU&&CU.role==='mgr'?filterByLocation(CLAIMS):CLAIMS;
