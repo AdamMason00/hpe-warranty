@@ -640,6 +640,7 @@ tr.clickable:hover td{background:#FFF3EC;cursor:pointer}
     <div style="display:flex;align-items:center;gap:8px"><button class="btn b-gh" style="font-size:11px" onclick="showToast('Refreshing work order data...')">Refresh</button><button class="btn b-or" style="font-size:11px" onclick="nav('claim',document.getElementById('ni-nc'));setTimeout(function(){window._manualMode=true;ncCur=0;ncRender();},80)">+ Manual Claim</button></div>
   </div>
   <div class="co">
+    <div id="sa-contact-reminders" style="display:none;margin-bottom:14px"></div>
     <div class="an ss">Open work orders loaded from your work order data. Claim one to pre-fill the form, or use Manual Entry.</div>
     <div class="sl2">Open Work Orders  -  Unassigned</div>
     <div id="wo-list"></div>
@@ -818,6 +819,7 @@ tr.clickable:hover td{background:#FFF3EC;cursor:pointer}
 <div class="modal-ov" id="oem-modal"><div class="modal">
   <div class="modal-h"><div><div class="modal-t" id="oem-modal-t">OEM Claim Details</div><div style="font-size:10px;color:#aaa;margin-top:2px" id="oem-modal-s"></div></div><button class="modal-cb" onclick="closeModal('oem-modal')">X</button></div>
   <div class="modal-b"><div class="oem-panel">
+    <div id="oem-checklist"></div>
     <div class="fg"><label class="fl2">OEM Claim Number *</label><input class="fi" id="oem-cn" placeholder="e.g. C1494820" style="font-family:monospace"></div>
     <div class="fg"><label class="fl2">OEM Portal Comments</label><textarea class="fta" id="oem-cc" rows="3" placeholder="Comments added to OEM portal submission..."></textarea></div>
     <div class="fg"><label class="fl2">Flag for Review?</label><div style="display:flex;gap:7px;margin-top:3px"><button class="btn b-gn" style="font-size:11px" onclick="showToast('No flag')">No Issues</button><button class="btn b-rd" style="font-size:11px" onclick="returnForInfo(window._oemClaimId)">Return for More Info</button></div></div>
@@ -1274,8 +1276,8 @@ function setupUI(){
   document.getElementById('ni-appr').style.display=isMgr?'flex':'none';
   document.getElementById('ni-ir').style.display=isMgr?'flex':'none';
   document.getElementById('ni-tasks').style.display=CU.role==='admin'?'flex':'none';
-  document.getElementById('ni-recon').style.display=isFinance?'flex':'none';
-  document.getElementById('ni-analytics').style.display=isMgr?'flex':'none';
+  document.getElementById('ni-recon').style.display=(isFinance||CU.role==='mgmt')?'flex':'none';
+  document.getElementById('ni-analytics').style.display=(isMgr||CU.role==='admin'||CU.role==='mgmt')?'flex':'none';
   document.getElementById('ni-dash').style.display=(CU.role==='admin'||CU.role==='tech'||CU.role==='finance'||isSA)?'none':'flex';
   document.querySelectorAll('.s-lbl').forEach(function(lbl){
     if(lbl.textContent.trim()==='Finance'){lbl.style.display=isFinance?'block':'none';}
@@ -1424,7 +1426,7 @@ async function loadCSVData(progress){
     if(cols.length<20)continue;
     var division=cols[0]||'';
     // WO prefix is authoritative: WS*=HYD010, WM*=HYD020
-    var loc=docNum.startsWith('WM')?'HYD020':'HYD010';
+    var loc=(docNum&&docNum.startsWith('WM'))?'HYD020':'HYD010';
     var docNum=(cols[8]||'').trim();
     if(!docNum)continue;
     var status=(cols[11]||'').trim();
@@ -1653,9 +1655,10 @@ async function runAIReview(complaint,cause,correction){
   reviewDiv.innerHTML='<div class="ai-loading"><div class="ai-spinner"></div>AI is reviewing your Three Cs for OEM submission quality...</div>';
   try{
     var prompt='You are an expert warranty submission reviewer for outdoor power equipment (Kubota, Toro, Walker, Stihl). Review these Three Cs narratives for an OEM warranty claim and provide quality feedback.\n\nCOMPLAINT: '+complaint+'\nCAUSE: '+cause+'\nCORRECTION: '+correction+'\n\nRespond ONLY with valid JSON, no markdown, no backticks:\n{"score":7.5,"issues":[{"section":"complaint","severity":"warn","problem":"Brief description of issue","suggestion":"Improved version of the text"}],"summary":"One sentence overall assessment","ready":false}\n\nRules:\n- score is 1-10 for OEM portal submission readiness\n- severity is "good", "warn", or "bad"\n- Check: does cause logically follow from complaint? Does correction address the cause? Is language specific enough for OEM?\n- If a section is empty, flag it as "bad"\n- If narrative is strong, note it as "good" with no suggestion needed\n- Keep suggestions professional and specific to equipment warranty language\n- ready is true only if score >= 7 and no bad issues';
-    var resp=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1000,messages:[{role:'user',content:prompt}]})});
-    var data=await resp.json();
-    var text=data.content.map(function(i){return i.text||'';}).join('').replace(/```json|```/g,'').trim();
+    var resp=await apiPost('proxyAI',{prompt:prompt,maxTokens:1000});
+    var data=resp&&resp.text?resp.text:'';
+    var text=data.replace(/```json|```/g,'').trim();
+    if(!text)throw new Error('No response');
     var result=JSON.parse(text);
     _aiSuggestions=result.issues||[];
     renderAIResult(result);
@@ -1726,7 +1729,7 @@ function dismissSuggestion(idx){
 function getMyClaims(){
   if(!CU)return[];
   if(CU.role==='tech')return CLAIMS.filter(function(c){return c&&c.id&&c.tech===CU.name;});
-  if(CU.role==='finance')return CLAIMS.filter(function(c){return c.s==='pay';});
+  if(CU.role==='finance')return CLAIMS.filter(function(c){return c&&c.s==='pay'&&c.oemClaimNum&&c.oemClaimNum.trim();});
   if(CU.role==='mgr'){var mLoc=getMgrLocation(CU.name);return CLAIMS.filter(function(c){return c.loc===mLoc;});}
   if(CU.role==='sa')return[]; // SA doesn't have claims
   return CLAIMS;
@@ -1769,27 +1772,43 @@ function renderMyBanner(){
 
 function renderMyClaims(d){
   var m=d||getMyClaims();var b=document.getElementById('my-body');if(!b)return;
+  m=m.filter(function(c){return c&&c.id;});
   if(!m.length){b.innerHTML='<tr><td colspan="8" style="text-align:center;padding:22px;color:var(--gl)">No claims yet.</td></tr>';return;}
-  b.innerHTML=m.map(function(c){var ac=ageClass(c.age);var al=ageLabel(c.age);var sc=c.aiScore?'<span style="font-size:9px;font-weight:700;color:'+(c.aiScore>=8?'var(--gn)':c.aiScore>=6?'var(--am)':'var(--rd)')+'">'+c.aiScore.toFixed(1)+'</span>':'<span style="color:var(--gl);font-size:10px">-</span>';
+  b.innerHTML=m.map(function(c){
+    var ac=ageClass(c.age||'0d');
+    var al=ageLabel(c.age||'0d');
     var cdHtml=c.workCompleted?countdownHtml(c.workCompleted):'<span style="color:var(--gl);font-size:10px">-</span>';
-    return'<tr class="clickable" onclick="openDP(\''+c.id+'\')">><td><span class="cid">'+c.id+'</span></td><td>'+c.cust+'</td><td><div class="en">'+c.en+'</div><div class="esub">'+c.es+'</div></td><td>'+c.oem+'</td><td><span class="pill '+(PMAP[c.s]||'p-new')+'">'+c.sl+'</span></td><td><span class="prio '+c.p+'">'+c.pl+'</span></td><td><span class="'+ac+'">'+al+'</span></td><td>'+sc+'<td>'+cdHtml+'<td>'+cdHtml+'</td></tr>';
+    var statusDays=['draft','new','ins','appr'].includes(c.s)?daysSinceUpdate(c):0;
+    var staleFlag=statusDays>=7?'<span style="background:var(--rd);color:#fff;padding:1px 5px;border-radius:3px;font-size:8px;font-weight:700;margin-left:4px" title="No status update in '+statusDays+' days">&#9888;</span>':'';
+    var col8=c.info?'<span style="color:var(--or);font-weight:600;font-size:10px">&#9888; Info Req</span>':cdHtml;
+    return '<tr class="clickable" onclick="openDP(\''+c.id+'\')">'+
+      '<td><span class="cid">'+(c.id||'?')+'</span>'+staleFlag+'</td>'+
+      '<td>'+(c.cust||'-')+'</td>'+
+      '<td><div class="en">'+(c.en||'-')+'</div><div class="esub">'+(c.es||'')+'</div></td>'+
+      '<td>'+(c.oem||'-')+'</td>'+
+      '<td><span class="pill '+(PMAP[c.s]||'p-new')+'">'+(c.sl||'NEW')+'</span></td>'+
+      '<td><span class="prio '+(c.p||'lo')+'">'+(c.pl||'LOW')+'</span></td>'+
+      '<td><span class="'+ac+'">'+al+'</span></td>'+
+      '<td>'+col8+'</td>'+
+      '</tr>';
   }).join('');
 }
-function filterMyC(q){var f=q.toLowerCase();renderMyClaims(getMyClaims().filter(function(c){return c.id.toLowerCase().includes(f)||c.en.toLowerCase().includes(f)||c.cust.toLowerCase().includes(f);}));}
+function filterMyC(q){var f=(q||'').toLowerCase();renderMyClaims(getMyClaims().filter(function(c){return c&&((c.id||'').toLowerCase().includes(f)||(c.en||'').toLowerCase().includes(f)||(c.cust||'').toLowerCase().includes(f));}));}
 
 function renderAllClaims(d){
   var b=document.getElementById('all-body');if(!b)return;
   if(CU&&(CU.role==='tech'||CU.role==='sa'))return;
   var base=CU&&CU.role==='mgr'?filterByLocation(CLAIMS):CLAIMS;
-  var data=d||base;
+  var data=(d||base).filter(function(c){return c&&c.id;});
   renderAgeAlerts(data,'all-age-alerts');
   var aEl=document.getElementById('all-aged-count');if(aEl)aEl.textContent=data.filter(function(c){return ageDays(c.age)>=20;}).length;
   var tEl=document.getElementById('all-total');if(tEl)tEl.textContent=data.length;
   var vEl=document.getElementById('all-value');if(vEl){var tv=data.reduce(function(s,c){return s+(c.claimAmt||0);},0);vEl.textContent='$'+(tv>=1000?(tv/1000).toFixed(1)+'K':tv.toFixed(0));}
   var insEl=document.getElementById('all-inspect');if(insEl)insEl.textContent=data.filter(function(c){return c.s==='ins';}).length;
   if(!data.length){b.innerHTML='<tr><td colspan="8" style="text-align:center;padding:22px;color:var(--gl)">No active claims.</td></tr>';return;}
-  b.innerHTML=data.map(function(c){var ac=ageClass(c.age);var al=ageLabel(c.age);
-    return'<tr class="clickable" onclick="openDP(\''+c.id+'\')"><td><span class="cid">'+(c.id||'?')+'</span></td><td>'+(c.cust||'-')+'</td><td><div class="en">'+(c.en||'-')+'</div><div class="esub">'+(c.es||'')+'</div></td><td style="font-weight:500">'+(c.tech||'<span style="color:var(--gl)">Unassigned</span>')+' <span class="loc-badge loc-'+c.loc.toLowerCase()+'">'+c.loc+'</span></td><td>'+c.oem+'</td><td style="font-family:monospace;font-size:10px;color:var(--gl)">'+c.oemCode+'</td><td><span class="pill '+(PMAP[c.s]||'p-new')+'">'+c.sl+'</span></td><td><span class="'+ac+'">'+al+'</span></td></tr>';
+  b.innerHTML=data.map(function(c){var ac=ageClass(c.age||'0d');var al=ageLabel(c.age||'0d');
+    var locDisp=c.loc?'<span class="loc-badge loc-'+c.loc.toLowerCase()+'">'+c.loc+'</span>':'';
+    return'<tr class="clickable" onclick="openDP(\''+c.id+'\')"><td><span class="cid">'+(c.id||'?')+'</span></td><td>'+(c.cust||'-')+'</td><td><div class="en">'+(c.en||'-')+'</div><div class="esub">'+(c.es||'')+'</div></td><td style="font-weight:500">'+(c.tech||'<span style="color:var(--gl)">Unassigned</span>')+' '+locDisp+'</td><td>'+(c.oem||'-')+'</td><td style="font-family:monospace;font-size:10px;color:var(--gl)">'+(c.oemCode||'')+'</td><td><span class="pill '+(PMAP[c.s]||'p-new')+'">'+(c.sl||'NEW')+'</span></td><td><span class="'+ac+'">'+al+'</span></td></tr>';
   }).join('');
 }
 function filterAllC(q){var f=q.toLowerCase();var base=CU&&CU.role==='mgr'?filterByLocation(CLAIMS):CLAIMS;renderAllClaims(base.filter(function(c){return (c.id||'').toLowerCase().includes(f)||(c.en||'').toLowerCase().includes(f)||(c.tech||'').toLowerCase().includes(f)||(c.cust||'').toLowerCase().includes(f);}));}
@@ -1937,16 +1956,80 @@ function renderReconQueue(){
   if(!CU)return;
   var el=document.getElementById('recon-queue');if(!el)return;
   if(CU&&CU.role!=='finance'&&CU.role!=='mgmt'){el.innerHTML='';return;}
-  var pending=CLAIMS.filter(function(c){return c.s==='pay';});
-  if(!pending.length){el.innerHTML='<div class="an ss">No in-app claims currently pending OEM credit entry.</div>';return;}
+  // Only show claims that have been submitted to OEM AND have OEM claim # entered
+  var pending=CLAIMS.filter(function(c){return c&&c.s==='pay'&&c.oemClaimNum&&c.oemClaimNum.trim();});
+  if(!pending.length){el.innerHTML='<div class="an ss">No claims ready for reconciliation. Claims appear here once Warranty Admin has entered the OEM claim number and submitted them.</div>';return;}
   el.innerHTML=pending.map(function(c){
     var mo=!c.oemClaimNum||c.oemClaimNum.trim()==='';
     var woFlag=c.woOpen?'<div class="an warn">Work order '+c.woId+' still open in DMS.</div>':'';
     var oemFlag=mo?'<div class="an danger">No OEM claim number — Warranty Admin must enter before credit is applied.</div>':'';
-    return'<div class="fc" style="border-left:4px solid '+(mo?'var(--rd)':'var(--or)')+'"><div class="fct"><div class="fn2">$</div>Record Credit — '+c.id+' · '+c.oem+' ('+c.oemCode+') · '+c.en+'</div>'+woFlag+oemFlag+'<div class="an bl" style="margin-bottom:8px">Enter the OEM credit and credit note reference to close this claim.</div><div class="fr2"><div class="fg"><label class="fl2">OEM Claim # <span class="rq">*</span></label><input class="fi" id="oem-num-'+c.id+'" value="'+(c.oemClaimNum||'')+'" placeholder="e.g. C1494820" style="font-family:monospace"></div><div class="fg"><label class="fl2">Claim Amount <span class="ptag">PRE-FILLED</span></label><input class="fi fi-pre" value="$'+c.claimAmt.toFixed(2)+'" readonly></div></div><div class="cg cg3"><div class="fg"><label class="fl2">Claim Amount <span class="ptag">PRE-FILLED</span></label><input class="fi fi-pre" value="$'+c.claimAmt.toFixed(2)+'" readonly></div><div class="fg"><label class="fl2">OEM Credit (excl. HST) *</label><input class="fi" id="cr-'+c.id+'" type="number" placeholder="0.00" oninput="calcCredit(\''+c.id+'\')"></div><div class="fg"><label class="fl2">OEM Credit Note # *</label><input class="fi" id="cn-'+c.id+'" placeholder="Credit note reference"></div></div><div class="fg"><label class="fl2">OEM Credit (incl. HST 13%) <span class="atag">AUTO</span></label><input class="fi fi-au" id="cri-'+c.id+'" readonly style="max-width:200px"></div><div class="fg"><label class="fl2">Net Cost to HPE <span class="atag">AUTO</span></label><input class="fi fi-au" id="net-'+c.id+'" readonly style="max-width:200px"></div><div class="rr2 rr-em" id="rr-'+c.id+'">Enter OEM credit to calculate</div><div style="margin-top:9px;display:flex;gap:6px"><button class="btn b-or" onclick="saveCredit(\''+c.id+'\')">Save & Mark Paid</button><button class="btn b-gh" onclick="openDP(\''+c.id+'\')">View Claim</button></div></div>';
+    var flaggedForMgmt=c.flaggedForMgmt?'<div class="an warn">&#9888; Flagged for Management Review — '+c.flaggedReason+'</div>':'';
+    return'<div class="fc" style="border-left:4px solid '+(mo?'var(--rd)':'var(--or)')+'"><div class="fct"><div class="fn2">$</div>Record Credit — '+c.id+' · '+c.oem+' ('+c.oemCode+') · '+c.en+'</div>'+woFlag+oemFlag+flaggedForMgmt+'<div class="an bl" style="margin-bottom:8px">Enter the OEM credit, credit note reference, and upload the credit note PDF to close this claim.</div><div class="fr2"><div class="fg"><label class="fl2">OEM Claim # <span class="rq">*</span></label><input class="fi" id="oem-num-'+c.id+'" value="'+(c.oemClaimNum||'')+'" placeholder="e.g. C1494820" style="font-family:monospace"></div><div class="fg"><label class="fl2">Claim Amount <span class="ptag">PRE-FILLED</span></label><input class="fi fi-pre" value="$'+c.claimAmt.toFixed(2)+'" readonly></div></div><div class="cg cg3"><div class="fg"><label class="fl2">Claim Amount <span class="ptag">PRE-FILLED</span></label><input class="fi fi-pre" value="$'+c.claimAmt.toFixed(2)+'" readonly></div><div class="fg"><label class="fl2">OEM Credit (excl. HST) *</label><input class="fi" id="cr-'+c.id+'" type="number" placeholder="0.00" oninput="calcCredit(\''+c.id+'\')"></div><div class="fg"><label class="fl2">OEM Credit Note # *</label><input class="fi" id="cn-'+c.id+'" placeholder="Credit note reference"></div></div><div class="fg"><label class="fl2">OEM Credit (incl. HST 13%) <span class="atag">AUTO</span></label><input class="fi fi-au" id="cri-'+c.id+'" readonly style="max-width:200px"></div><div class="fg"><label class="fl2">Net Cost to HPE <span class="atag">AUTO</span></label><input class="fi fi-au" id="net-'+c.id+'" readonly style="max-width:200px"></div><div class="rr2 rr-em" id="rr-'+c.id+'">Enter OEM credit to calculate</div><div class="fg" style="margin-top:10px"><label class="fl2">Upload Credit Note PDF</label><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><label style="cursor:pointer;display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:600;color:var(--bl);padding:7px 14px;border:1.5px solid var(--bl);border-radius:6px"><input type="file" accept="application/pdf,image/*" style="display:none" onchange="uploadCreditNote(\''+c.id+'\',this)">&#128206; Choose File</label><span id="cn-file-'+c.id+'" style="font-size:11px;color:var(--gt)">'+(c.creditNoteFile?c.creditNoteFile:'No file uploaded')+'</span></div></div><div style="margin-top:9px;display:flex;gap:6px;flex-wrap:wrap"><button class="btn b-gn" onclick="saveCredit(\''+c.id+'\')">Save & Mark Paid</button><button class="btn b-rd" onclick="sendToManagement(\''+c.id+'\')">Send to Management for Review</button><button class="btn b-gh" onclick="openDP(\''+c.id+'\')">View Claim</button></div></div>';
   }).join('');
 }
-function calcCredit(id){var cr=parseFloat(document.getElementById('cr-'+id)?document.getElementById('cr-'+id).value:0)||0;var c=getClaim(id);if(!c)return;var crI=cr*1.13;var net=c.claimAmt-crI;var criEl=document.getElementById('cri-'+id);var netEl=document.getElementById('net-'+id);if(criEl)criEl.value=cr>0?crI.toFixed(2):'';if(netEl)netEl.value=cr>0?net.toFixed(2):'';var rr=document.getElementById('rr-'+id);if(!rr)return;if(!cr){rr.className='rr2 rr-em';rr.textContent='Enter OEM credit to calculate';return;}var pct=(net/c.claimAmt)*100;if(pct<=0){rr.className='rr2 rr-ok';rr.textContent='Full recovery.';}else if(pct>10){rr.className='rr2 rr-flag';rr.textContent='FLAG: '+pct.toFixed(1)+'% loss exceeds 10%. Net loss $'+Math.abs(net).toFixed(2);}else{rr.className='rr2 rr-ok';rr.textContent='Acceptable: '+pct.toFixed(1)+'% variance';}}
+function calcCredit(id){var cr=parseFloat(document.getElementById('cr-'+id)?document.getElementById('cr-'+id).value:0)||0;var c=getClaim(id);if(!c)return;var crI=cr*1.13;var net=c.claimAmt-crI;var criEl=document.getElementById('cri-'+id);var netEl=document.getElementById('net-'+id);if(criEl)criEl.value=cr>0?crI.toFixed(2):'';if(netEl)netEl.value=cr>0?net.toFixed(2):'';var rr=document.getElementById('rr-'+id);if(!rr)return;if(!cr){rr.className='rr2 rr-em';rr.textContent='Enter OEM credit to calculate';return;}var pct=(net/c.claimAmt)*100;if(pct<=0){rr.className='rr2 rr-ok';rr.textContent='Full recovery.';}else if(pct>15){rr.className='rr2 rr-flag';rr.textContent='FLAG: '+pct.toFixed(1)+'% loss exceeds 15% threshold. Send to Management for review.';}else{rr.className='rr2 rr-ok';rr.textContent='Acceptable: '+pct.toFixed(1)+'% variance';}}
+
+async function uploadCreditNote(claimId,inp){
+  if(!inp.files||!inp.files.length)return;
+  var file=inp.files[0];
+  var c=getClaim(claimId);if(!c)return;
+  var statusEl=document.getElementById('cn-file-'+claimId);
+  if(statusEl)statusEl.textContent='Uploading...';
+  try{
+    var b64=await fileToBase64(file);
+    var fileName=claimId+'_CreditNote_'+(file.name||'credit.pdf');
+    var result=await apiPost('uploadPhoto',{
+      claimId:claimId,folderId:PHOTOS_FOLDER_ID,
+      base64:b64.split(',')[1],
+      mimeType:file.type||'application/pdf',
+      fileName:fileName
+    });
+    if(result&&result.ok){
+      c.creditNoteFile=fileName;
+      c.creditNoteUrl=result.url||'';
+      apiPost('saveClaim',{claim:c});
+      if(statusEl)statusEl.textContent='&#10003; '+fileName;
+      showToast('Credit note uploaded for '+claimId);
+    } else {
+      if(statusEl)statusEl.textContent='Upload failed';
+      showToast('Credit note upload failed');
+    }
+  }catch(e){
+    console.warn('Credit note upload error:',e);
+    if(statusEl)statusEl.textContent='Upload failed';
+  }
+}
+
+function sendToManagement(id){
+  var crEl=document.getElementById('cr-'+id);
+  var cnEl=document.getElementById('cn-'+id);
+  var cr=crEl?crEl.value:'';
+  var cn=cnEl?cnEl.value.trim():'';
+  if(!cr){showToast('Enter OEM credit amount first');return;}
+  var c=getClaim(id);if(!c)return;
+  var crNum=parseFloat(cr)||0;
+  var crInclHST=crNum*1.13;
+  var net=c.claimAmt-crInclHST;
+  var variance=c.claimAmt>0?(net/c.claimAmt)*100:0;
+  if(variance<=15&&!confirm('Variance is only '+variance.toFixed(1)+'% — within acceptable range. Send to management anyway?')){
+    return;
+  }
+  var reason=prompt('Reason for management review (e.g. unexpectedly low credit, OEM rejection, dispute):');
+  if(!reason)return;
+  c.flaggedForMgmt=true;
+  c.flaggedReason=reason;
+  c.flaggedBy=CU?CU.name:'Finance';
+  c.flaggedDate=new Date().toISOString();
+  c.proposedCredit=crNum;
+  c.proposedCreditNote=cn;
+  c.proposedVariance=parseFloat(variance.toFixed(1));
+  apiPost('saveClaim',{claim:c});
+  apiPost('saveNote',{claimId:id,author:CU?CU.name:'Finance',role:CU?CU.role:'finance',
+    text:'Sent to Management for review. Variance: '+variance.toFixed(1)+'%. Reason: '+reason,type:'mgmt-review'});
+  showToast(id+' flagged for Management review');
+  refreshAll();
+}
+
 function saveCredit(id){
   var crEl=document.getElementById('cr-'+id);
   var cnEl=document.getElementById('cn-'+id);
@@ -1960,7 +2043,7 @@ function saveCredit(id){
   var net=c.claimAmt-crInclHST;
   var variance=c.claimAmt>0?(net/c.claimAmt)*100:0;
   var today=new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
-  var status=variance>10?'FLAGGED':'CLOSED';
+  var status=variance>15?'FLAGGED':'CLOSED';
   // Add to reconciliation history
   var reconRecord={
    
@@ -1973,7 +2056,8 @@ function saveCredit(id){
     netToHPE:parseFloat(net.toFixed(2)),
     variance:parseFloat(variance.toFixed(1)),
     closedDate:today,
-    status:status
+    status:status,
+    creditNoteFile:c.creditNoteFile||''
   };
   RECON_HISTORY.unshift(reconRecord);
   apiPost('saveRecon',{recon:reconRecord});
@@ -1985,7 +2069,8 @@ function saveCredit(id){
     closedDate:today,partRemoved:c.partRemoved||'',
     partStorage:c.partStorage||'',disposeDate:c.disposeDate||'',
     adminComments:c.adminComments||[],editLog:c.editLog||[],
-    driveFolder:'Warranty Claims/'+id,aiScore:c.aiScore||null
+    driveFolder:'Warranty Claims/'+id,aiScore:c.aiScore||null,
+    creditNoteFile:c.creditNoteFile||''
   };
   ARCHIVE_CLAIMS.unshift(archiveRec);
   apiPost('archiveClaim',{archive:archiveRec});
@@ -1995,7 +2080,34 @@ function saveCredit(id){
   else showToast(id+' closed - credit recorded and added to reconciliation history');
 }
 
+function renderSAContactReminders(){
+  var el=document.getElementById('sa-contact-reminders');
+  if(!el)return;
+  if(!CU||CU.role!=='sa'){el.style.display='none';return;}
+  // Show contact reminders for claims at SA's location that have a tech assigned and >= 3 days no contact
+  var myLoc=CU.loc;
+  var needContact=CLAIMS.filter(function(c){
+    return c&&c.loc===myLoc&&c.tech&&['draft','new','ins','appr','sub'].includes(c.s)&&daysSinceContact(c)>=3;
+  });
+  if(!needContact.length){el.style.display='none';return;}
+  el.style.display='block';
+  var html='<div style="background:#FFF8F0;border:1.5px solid #FFD0A0;border-radius:9px;padding:12px 14px">';
+  html+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:9px"><div style="font-size:16px">&#9742;</div><div style="font-size:13px;font-weight:700;color:var(--or)">'+needContact.length+' customer'+(needContact.length>1?'s':'')+' need a status update</div></div>';
+  html+='<div style="font-size:11px;color:var(--gt);margin-bottom:9px">It has been 3+ days since the last customer contact. Reach out and log it to reset the clock.</div>';
+  needContact.forEach(function(c){
+    var d=daysSinceContact(c);
+    var col=d>=6?'var(--rd)':d>=4?'var(--or)':'var(--am)';
+    html+='<div style="background:#fff;border:1px solid var(--gbd);border-radius:6px;padding:8px 10px;margin-bottom:5px;display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">';
+    html+='<div style="flex:1;min-width:200px"><span class="cid">'+c.id+'</span> &middot; <strong>'+(c.cust||'-')+'</strong> &middot; '+(c.en||'-')+'<br><span style="font-size:10px;color:'+col+';font-weight:700">'+d+' days no contact</span> &middot; <span style="font-size:10px;color:var(--gt)">Tech: '+(c.tech||'-')+'</span></div>';
+    html+='<div style="display:flex;gap:5px"><button class="btn b-or" style="font-size:10px" onclick="logContact(\''+c.id+'\')">Log Contact</button><button class="btn b-gh" style="font-size:10px" onclick="openDP(\''+c.id+'\')">View</button></div>';
+    html+='</div>';
+  });
+  html+='</div>';
+  el.innerHTML=html;
+}
+
 function renderWOList(){
+  renderSAContactReminders();
   initWOReviewStatus();
   var openEl=document.getElementById('wo-list');var clEl=document.getElementById('wo-claimed-list');if(!openEl)return;
   var isSA=CU&&CU.role==='sa';
@@ -2051,8 +2163,21 @@ function openSANotesPanel(woId){
 }
 function claimWO(id){
   var w=SS_WOS.find(function(x){return x.id===id;});
+  // Check for existing non-draft claim - block to prevent duplicates
+  var existing=CLAIMS.find(function(x){return x.id===id;});
+  if(existing&&existing.s!=='draft'){
+    if(!confirm('Warning: WO '+id+' already has a '+(existing.sl||'submitted')+' claim by '+existing.tech+'. Continuing will replace it. Are you sure?')){
+      return;
+    }
+  }
+  // Check if claimed by another tech (someone else holds the draft)
+  if(existing&&existing.s==='draft'&&existing.tech&&existing.tech!==(CU?CU.name:'')){
+    if(!confirm('WO '+id+' is currently claimed by '+existing.tech+'. Take over this claim?')){
+      return;
+    }
+  }
   // Create In Progress draft immediately
-  if(!CLAIMS.find(function(x){return x.id===id;})){
+  if(!existing){
     var draft={
       id:id,cust:w?w.cust:'',phone:'',en:w?(w.make+' '+w.model).trim():'',es:'',
       make:w?w.make:'',model:w?w.model:'',serial:w?w.serial:'',
@@ -2072,6 +2197,10 @@ function claimWO(id){
     apiPost('saveClaim',{claim:draft}).then(function(r){
       if(r)console.log('Draft claim saved:',id);
     });
+  } else if(existing.s==='draft'){
+    // Take over draft by updating tech
+    existing.tech=CU?CU.name:existing.tech;
+    apiPost('saveClaim',{claim:existing});
   }
   // Mark as claimed in local list
   if(!CLAIMED_WOS.find(function(c){return c.id===id;})){
@@ -2117,23 +2246,27 @@ function renderTechPerf(){
   var techMap={};
   var base=CU&&CU.role==='mgr'?CLAIMS.filter(function(c){return c.loc===getMgrLocation(CU.name);}):CLAIMS;
   base.forEach(function(c){
-    if(!c.tech)return;
-    if(!techMap[c.tech])techMap[c.tech]={t:c.tech,loc:c.loc,sub:0,fp:0,irs:0,cyc:0};
+    if(!c||!c.tech)return;
+    if(!techMap[c.tech])techMap[c.tech]={t:c.tech,loc:c.loc,sub:0,fp:0,irs:0,cyc:0,val:0,aiSum:0,aiCount:0};
     var e=techMap[c.tech];e.sub++;
     if(c.info)e.irs++;
     if(c.workCompleted){var ds=daysSinceSubmission(c.workCompleted);if(ds>0)e.cyc+=ds;}
+    e.val+=c.claimAmt||0;
+    if(c.aiScore){e.aiSum+=c.aiScore;e.aiCount++;}
   });
   var td=Object.values(techMap).sort(function(a,b){return b.sub-a.sub;});
-  if(!td.length){b.innerHTML='<tr><td colspan="6" style="text-align:center;padding:18px;color:var(--gl)">No claims submitted yet.</td></tr>';return;}
+  if(!td.length){b.innerHTML='<tr><td colspan="7" style="text-align:center;padding:18px;color:var(--gl)">No claims submitted yet.</td></tr>';return;}
   b.innerHTML=td.map(function(t){
     var fp=t.sub>0?Math.round((1-t.irs/t.sub)*100):100;
     var cyc=t.sub>0?Math.round(t.cyc/t.sub):0;
     var fc=fp>=90?'var(--gn)':fp>=80?'var(--or)':'var(--rd)';
+    var avgAI=t.aiCount>0?(t.aiSum/t.aiCount).toFixed(1):'-';
     return'<tr><td style="font-weight:600">'+t.t+'</td>'+
-      '<td><span class="loc-badge loc-'+t.loc.toLowerCase()+'">'+t.loc+'</span></td>'+
+      '<td><span class="loc-badge loc-'+(t.loc||'').toLowerCase()+'">'+(t.loc||'-')+'</span></td>'+
       '<td>'+t.sub+'</td>'+
       '<td style="color:'+fc+';font-weight:700">'+fp+'%</td>'+
       '<td>'+(cyc>0?cyc+'d':'-')+'</td>'+
+      '<td style="font-weight:600">$'+(t.val>=1000?(t.val/1000).toFixed(1)+'K':t.val.toFixed(0))+'</td>'+
       '<td style="color:'+(t.irs>2?'var(--rd)':t.irs>0?'var(--or)':'var(--gn)')+';font-weight:700">'+t.irs+'</td></tr>';
   }).join('');
 }
@@ -2205,6 +2338,15 @@ function openDP(id){
   document.getElementById('dp-body').innerHTML=body;
   var acts='<button class="btn b-bl" onclick="openNotesModal(\''+id+'\')">Notes</button>';
   if(c){
+    // Status update + Contact log buttons for active claims
+    if(['draft','new','ins','appr','sub'].includes(c.s)&&CU&&['mgr','mgmt','admin','sa'].includes(CU.role)){
+      var daysUpd=daysSinceUpdate(c);
+      var daysCon=daysSinceContact(c);
+      var updColor=daysUpd>=7?'b-rd':daysUpd>=4?'b-or':'b-gh';
+      var conColor=daysCon>=6?'b-rd':daysCon>=3?'b-or':'b-gh';
+      acts+='<button class="btn '+updColor+'" style="font-size:11px" onclick="logStatusUpdate(\''+id+'\')">Status Note ('+daysUpd+'d)</button>';
+      acts+='<button class="btn '+conColor+'" style="font-size:11px" onclick="logContact(\''+id+'\')">Log Contact ('+daysCon+'d)</button>';
+    }
     if(CU&&(CU.role==='mgr'||CU.role==='mgmt')){
       if(c.s==='appr')acts+='<button class="btn b-gn" onclick="approveClaim(\''+id+'\');closeDP()">Approve</button><button class="btn b-bl" style="font-size:11px" onclick="approveWithEdits(\''+id+'\');closeDP()">Approve+AI</button><button class="btn b-rd" onclick="returnForInfo(\''+id+'\')">Return</button>';
     }
@@ -2217,7 +2359,38 @@ function openDP(id){
 function closeDP(){document.getElementById('dp').classList.remove('open');}
 
 window._oemClaimId='';
-function openOEMPanel(id,eq){window._oemClaimId=id;document.getElementById('oem-modal-t').textContent='OEM Claim  -  '+id;document.getElementById('oem-modal-s').textContent=eq;document.getElementById('oem-cn').value='';document.getElementById('oem-cc').value='';document.getElementById('oem-modal').classList.add('open');}
+function openOEMPanel(id,eq){
+  window._oemClaimId=id;
+  document.getElementById('oem-modal-t').textContent='OEM Claim  -  '+id;
+  document.getElementById('oem-modal-s').textContent=eq;
+  document.getElementById('oem-cn').value='';
+  document.getElementById('oem-cc').value='';
+  // Render submission checklist
+  var c=getClaim(id);
+  var clEl=document.getElementById('oem-checklist');
+  if(clEl&&c){
+    var checks=[
+      {label:'Photos attached',ok:c.photos&&c.photos.length>=3,detail:c.photos?c.photos.length+' photos':'No photos'},
+      {label:'Failed part retained',ok:c.partRemoved&&c.partRemoved.trim(),detail:c.partStorage||'Storage location not set'},
+      {label:'Serial number recorded',ok:c.serial&&c.serial.trim(),detail:c.serial||'No serial'},
+      {label:'Complaint complete',ok:c.complaint&&c.complaint.trim().length>20,detail:c.complaint?(c.complaint.length+' chars'):'Empty'},
+      {label:'Cause complete',ok:c.cause&&c.cause.trim().length>20,detail:c.cause?(c.cause.length+' chars'):'Empty'},
+      {label:'Correction complete',ok:c.correction&&c.correction.trim().length>20,detail:c.correction?(c.correction.length+' chars'):'Empty'}
+    ];
+    var allOk=checks.every(function(ch){return ch.ok;});
+    var html='<div style="background:'+(allOk?'#F0FDF4':'#FFF8F0')+';border:1.5px solid '+(allOk?'#86EFAC':'#FFD080')+';border-radius:7px;padding:10px 12px;margin-bottom:14px">';
+    html+='<div style="font-size:11px;font-weight:700;margin-bottom:8px;color:'+(allOk?'var(--gn)':'var(--am)')+'">'+(allOk?'&#10003; All checks passed — ready to submit':'&#9888; Submission checklist — review before sending')+'</div>';
+    checks.forEach(function(ch){
+      html+='<div style="display:flex;align-items:center;gap:7px;padding:3px 0;font-size:11px">';
+      html+='<span style="color:'+(ch.ok?'var(--gn)':'var(--rd)')+';font-size:13px">'+(ch.ok?'&#10003;':'&#10007;')+'</span>';
+      html+='<span style="flex:1;color:var(--gt)"><strong>'+ch.label+'</strong> &middot; '+ch.detail+'</span>';
+      html+='</div>';
+    });
+    html+='</div>';
+    clEl.innerHTML=html;
+  }
+  document.getElementById('oem-modal').classList.add('open');
+}
 function submitOEMClaim(){var cn=document.getElementById('oem-cn').value.trim();if(!cn){showToast('OEM Claim # required');return;}updateClaimStatus(window._oemClaimId,'pay','PENDING PAYMENT',{oemClaimNum:cn});closeModal('oem-modal');showToast(window._oemClaimId+'  -  OEM # saved, moved to Pending Payment');}
 function openRejPanel(id,eq){document.getElementById('rej-modal-s').textContent=id+'  -  '+eq;['rej-reason','rej-new-cn','rej-notes'].forEach(function(i){var el=document.getElementById(i);if(el)el.value='';});document.getElementById('rej-modal').classList.add('open');}
 function handleRejection(){var act=document.getElementById('rej-action').value;if(!act){showToast('Select an action');return;}closeModal('rej-modal');showToast('Rejection handled: '+act);}
@@ -2264,13 +2437,107 @@ function renderDashboard(){
     var pendingAppr=myC.filter(function(c){return c.s==='appr';});
     var openIRs=IR_DATA.filter(function(r){return!r.resolved&&CLAIMS.find(function(c){return c.id===r.claimId&&c.loc===myLoc;});});
     var aged=myC.filter(function(c){return ageDays(c.age)>=20;});
-    var inProg=myC.filter(function(c){return['new','ins'].includes(c.s);});
+    var inProg=myC.filter(function(c){return['new','ins','draft'].includes(c.s);});
+    // 7-day flagged claims (claims in active states older than 7 days since last update)
+    var flagged7d=myC.filter(function(c){return['draft','new','ins','appr'].includes(c.s)&&daysSinceUpdate(c)>=7;});
+    // 6-day no contact (escalated from SA)
+    var staleContact=myC.filter(function(c){return['draft','new','ins','appr','sub'].includes(c.s)&&daysSinceContact(c)>=6;});
+    // Disposal date reminders - parts approaching or past 90-day window
+    var myArchive=typeof ARCHIVE_CLAIMS!=='undefined'?ARCHIVE_CLAIMS.filter(function(c){return c.loc===myLoc;}):[];
+    var allMyParts=myC.filter(function(c){return c.disposeDate;}).concat(myArchive.filter(function(c){return c.disposeDate;}));
+    var disposeNow=allMyParts.filter(function(c){return partStatus(c.disposeDate)==='dispose';});
+    var disposeSoon=allMyParts.filter(function(c){return partStatus(c.disposeDate)==='warn';});
     var myAIAvg=(myC.reduce(function(a,c){return a+(c.aiScore||0);},0)/(myC.length||1)).toFixed(1);
-    var alertCount=pendingAppr.length+openIRs.length+(aged.length>0?1:0);
+    var alertCount=pendingAppr.length+openIRs.length+(aged.length>0?1:0)+flagged7d.length+staleContact.length;
     var alertEl=document.getElementById('dash-alert-cnt');
     if(alertEl){alertEl.textContent=alertCount;alertEl.style.display=alertCount>0?'inline-flex':'none';}
     dp2.textContent=myLoc+' Dashboard - '+CU.name;
     dps.textContent='Active claims and outstanding tasks for your location';
+
+    // Tech workload — group active claims by tech
+    var techWorkload={};
+    inProg.forEach(function(c){
+      var t=c.tech||'Unassigned';
+      if(!techWorkload[t])techWorkload[t]=[];
+      techWorkload[t].push(c);
+    });
+    var techWorkloadHtml='';
+    Object.keys(techWorkload).sort().forEach(function(tech){
+      var jobs=techWorkload[tech];
+      var oldest=Math.max.apply(null,jobs.map(daysSinceUpdate));
+      var barCol=oldest>=7?'var(--rd)':oldest>=4?'var(--am)':'var(--gn)';
+      techWorkloadHtml+='<div style="background:#fff;border:1px solid var(--gbd);border-radius:8px;padding:10px 12px;margin-bottom:6px">';
+      techWorkloadHtml+='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px">';
+      techWorkloadHtml+='<div style="font-size:12px;font-weight:700">'+tech+'</div>';
+      techWorkloadHtml+='<div style="font-size:10px;color:var(--gt);font-weight:600">'+jobs.length+' job'+(jobs.length!==1?'s':'')+' &middot; oldest '+oldest+'d</div>';
+      techWorkloadHtml+='</div>';
+      // Status bar
+      techWorkloadHtml+='<div style="height:5px;background:#eee;border-radius:3px;overflow:hidden;margin-bottom:7px">';
+      techWorkloadHtml+='<div style="height:100%;background:'+barCol+';width:'+Math.min(100,oldest*14)+'%"></div></div>';
+      // Job list
+      techWorkloadHtml+='<div style="display:flex;flex-wrap:wrap;gap:4px">';
+      jobs.forEach(function(c){
+        var d=daysSinceUpdate(c);
+        var col=d>=7?'var(--rd)':d>=4?'var(--am)':'var(--gl)';
+        techWorkloadHtml+='<span class="cid" style="cursor:pointer;font-size:10px;border:1px solid '+col+';color:'+col+'" onclick="openDP(\''+c.id+'\');event.stopPropagation()">'+c.id+' ('+d+'d)</span>';
+      });
+      techWorkloadHtml+='</div></div>';
+    });
+    if(!techWorkloadHtml)techWorkloadHtml='<div style="text-align:center;padding:14px;color:var(--gl);font-size:12px">No active jobs in progress.</div>';
+
+    // 7-day flagged claims section
+    var flagged7dHtml='';
+    if(flagged7d.length){
+      flagged7dHtml='<div class="sl2" style="color:var(--rd)">&#9888; Claims Past 7 Days — Status Check Needed</div>';
+      flagged7dHtml+='<div style="background:#FFF8F0;border:1.5px solid #FFD0A0;border-radius:9px;padding:10px;margin-bottom:14px">';
+      flagged7d.forEach(function(c){
+        var d=daysSinceUpdate(c);
+        flagged7dHtml+='<div style="background:#fff;border:1px solid var(--gbd);border-radius:6px;padding:8px 10px;margin-bottom:5px;display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">';
+        flagged7dHtml+='<div style="flex:1;min-width:200px"><span class="cid">'+c.id+'</span> &middot; '+(c.cust||'-')+' &middot; '+(c.tech||'-')+' &middot; <span style="color:var(--rd);font-weight:700">'+d+'d since update</span></div>';
+        flagged7dHtml+='<div style="display:flex;gap:5px"><button class="btn b-or" style="font-size:10px" onclick="logStatusUpdate(\''+c.id+'\')">Add Status Note</button><button class="btn b-gh" style="font-size:10px" onclick="openDP(\''+c.id+'\')">View</button></div>';
+        flagged7dHtml+='</div>';
+      });
+      flagged7dHtml+='</div>';
+    }
+
+    // Customer contact escalation (6+ days)
+    var staleContactHtml='';
+    if(staleContact.length){
+      staleContactHtml='<div class="sl2" style="color:var(--or)">&#9742; Customer Contact Overdue (SA Escalation)</div>';
+      staleContactHtml+='<div style="background:#FFF8F0;border:1.5px solid #FFD0A0;border-radius:9px;padding:10px;margin-bottom:14px">';
+      staleContact.forEach(function(c){
+        var d=daysSinceContact(c);
+        staleContactHtml+='<div style="background:#fff;border:1px solid var(--gbd);border-radius:6px;padding:8px 10px;margin-bottom:5px;display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">';
+        staleContactHtml+='<div style="flex:1;min-width:200px"><span class="cid">'+c.id+'</span> &middot; '+(c.cust||'-')+' &middot; <span style="color:var(--or);font-weight:700">'+d+'d no contact</span></div>';
+        staleContactHtml+='<div style="display:flex;gap:5px"><button class="btn b-or" style="font-size:10px" onclick="logContact(\''+c.id+'\')">Log Contact</button><button class="btn b-gh" style="font-size:10px" onclick="openDP(\''+c.id+'\')">View</button></div>';
+        staleContactHtml+='</div>';
+      });
+      staleContactHtml+='</div>';
+    }
+
+    // Disposal date reminders
+    var disposalHtml='';
+    if(disposeNow.length||disposeSoon.length){
+      disposalHtml='<div class="sl2" style="color:'+(disposeNow.length?'var(--rd)':'var(--am)')+'">&#128293; Part Disposal Reminders</div>';
+      disposalHtml+='<div style="background:'+(disposeNow.length?'#FEF2F2':'#FFFBF0')+';border:1.5px solid '+(disposeNow.length?'#FCA5A5':'#FFD0A0')+';border-radius:9px;padding:10px;margin-bottom:14px">';
+      if(disposeNow.length){
+        disposalHtml+='<div style="font-size:11px;font-weight:700;color:var(--rd);margin-bottom:6px">'+disposeNow.length+' part(s) PAST 90-day retention window — safe to dispose now:</div>';
+        disposeNow.forEach(function(c){
+          disposalHtml+='<div style="background:#fff;border:1px solid var(--gbd);border-radius:6px;padding:7px 10px;margin-bottom:4px;display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">';
+          disposalHtml+='<div style="flex:1;min-width:200px"><span class="cid">'+(c.id||c.claimId)+'</span> &middot; '+(c.partRemoved||'Part')+' &middot; <span style="font-size:10px;color:var(--gt)">Storage: '+(c.partStorage||'Not set')+'</span></div>';
+          disposalHtml+='<button class="btn b-gh" style="font-size:10px" onclick="openDP(\''+(c.id||c.claimId)+'\')">View</button></div>';
+        });
+      }
+      if(disposeSoon.length){
+        disposalHtml+='<div style="font-size:11px;font-weight:700;color:var(--am);margin-top:'+(disposeNow.length?'8px':'0')+';margin-bottom:6px">'+disposeSoon.length+' part(s) within 14 days of disposal date:</div>';
+        disposeSoon.forEach(function(c){
+          disposalHtml+='<div style="background:#fff;border:1px solid var(--gbd);border-radius:6px;padding:7px 10px;margin-bottom:4px;display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">';
+          disposalHtml+='<div style="flex:1;min-width:200px"><span class="cid">'+(c.id||c.claimId)+'</span> &middot; '+(c.partRemoved||'Part')+' &middot; <span style="font-size:10px;color:var(--gt)">Dispose by: '+c.disposeDate+'</span></div>';
+          disposalHtml+='<button class="btn b-gh" style="font-size:10px" onclick="openDP(\''+(c.id||c.claimId)+'\')">View</button></div>';
+        });
+      }
+      disposalHtml+='</div>';
+    }
 
     var taskHtml='';
     var overdue48=pendingAppr.filter(function(c){return c.submittedAt&&daysSinceSubmission(c.submittedAt)>=2;});
@@ -2304,13 +2571,18 @@ function renderDashboard(){
           '<div class="sc-l">Pending Approval</div><div class="sc-v '+(pendingAppr.length>0?'rd':'gn')+'">'+pendingAppr.length+'</div>'+
           (pendingAppr.length>0?'<div class="sc-s">Action required</div>':'')+
         '</div>'+
+        '<div class="sc '+(flagged7d.length>0?'rd':'gn')+'"><div class="sc-l">7-Day Flagged</div><div class="sc-v '+(flagged7d.length>0?'rd':'gn')+'">'+flagged7d.length+'</div>'+(flagged7d.length>0?'<div class="sc-s">No status update</div>':'')+'</div>'+
         '<div class="sc '+(openIRs.length>0?'or':'gn')+'" style="cursor:pointer" onclick="nav(&quot;ir&quot;,document.getElementById(&quot;ni-ir&quot;))">'+
           '<div class="sc-l">Open Info Requests</div><div class="sc-v '+(openIRs.length>0?'or':'gn')+'">'+openIRs.length+'</div>'+
           (openIRs.length>0?'<div class="sc-s">Action required</div>':'')+
         '</div>'+
         '<div class="sc bl"><div class="sc-l">In Progress</div><div class="sc-v bl">'+inProg.length+'</div><div class="sc-s">Being worked on</div></div>'+
-        '<div class="sc am"><div class="sc-l">Avg AI Score</div><div class="sc-v am">'+myAIAvg+'</div><div class="sc-s">Your location</div></div>'+
       '</div>'+
+      flagged7dHtml+
+      staleContactHtml+
+      disposalHtml+
+      '<div class="sl2">Tech Workload — Active Jobs in Progress</div>'+
+      '<div style="margin-bottom:14px">'+techWorkloadHtml+'</div>'+
       '<div class="sl2">Outstanding Tasks</div>'+
       '<div style="background:var(--wh);border-radius:9px;border:1px solid var(--gbd);overflow:hidden;margin-bottom:14px">'+taskHtml+'</div>'+
       '<div class="sl2">Claims by Status</div>'+
@@ -2318,10 +2590,10 @@ function renderDashboard(){
       myC.slice(0,8).map(function(c){
         return'<tr class="clickable" onclick="openDP(\''+c.id+'\')">'+
           '<td><span class="cid">'+c.id+'</span></td>'+
-          '<td style="font-size:11px">'+c.cust+'</td>'+
-          '<td style="font-size:11px">'+c.en+'</td>'+
-          '<td><span class="pill '+(PMAP[c.s]||'p-new')+'">'+c.sl+'</span></td>'+
-          '<td><span class="'+ageClass(c.age)+'">'+ageLabel(c.age)+'</span></td>'+
+          '<td style="font-size:11px">'+(c.cust||'-')+'</td>'+
+          '<td style="font-size:11px">'+(c.en||'-')+'</td>'+
+          '<td><span class="pill '+(PMAP[c.s]||'p-new')+'">'+(c.sl||'NEW')+'</span></td>'+
+          '<td><span class="'+ageClass(c.age||'0d')+'">'+ageLabel(c.age||'0d')+'</span></td>'+
         '</tr>';
       }).join('')+
       '</tbody></table></div>';
@@ -2333,13 +2605,33 @@ function renderDashboard(){
     var allIRs=IR_DATA.filter(function(r){return!r.resolved;});
     var allAged=CLAIMS.filter(function(c){return ageDays(c.age)>=20;});
     var allPay=CLAIMS.filter(function(c){return c.s==='pay';});
+    var flaggedForMgmt=CLAIMS.filter(function(c){return c.flaggedForMgmt;}).concat(typeof ARCHIVE_CLAIMS!=='undefined'?ARCHIVE_CLAIMS.filter(function(c){return c.flaggedForMgmt;}):[]);
     var validityPending=Object.keys(VALIDITY_FLAGS).filter(function(k){return VALIDITY_FLAGS[k].status==='pending';}).length;
-    var alertCount=allAppr.length+allIRs.length+(allAged.length>0?1:0);
+    var alertCount=allAppr.length+allIRs.length+(allAged.length>0?1:0)+flaggedForMgmt.length;
     var alertEl=document.getElementById('dash-alert-cnt');
     if(alertEl){alertEl.textContent=alertCount;alertEl.style.display=alertCount>0?'inline-flex':'none';}
     dp2.textContent='Management Dashboard';
     dps.textContent='Full overview - HYD010 & HYD020';
     var aiAvg=(CLAIMS.reduce(function(a,c){return a+(c.aiScore||0);},0)/CLAIMS.length).toFixed(1);
+
+    // Management Review Queue from Finance
+    var mgmtReviewHtml='';
+    if(flaggedForMgmt.length){
+      mgmtReviewHtml='<div class="sl2" style="color:var(--rd)">&#9888; Management Review Queue — Finance Flagged Claims</div>';
+      mgmtReviewHtml+='<div style="background:#FEF2F2;border:1.5px solid #FCA5A5;border-radius:9px;padding:10px;margin-bottom:14px">';
+      flaggedForMgmt.forEach(function(c){
+        var v=c.proposedVariance!==undefined?c.proposedVariance:0;
+        mgmtReviewHtml+='<div style="background:#fff;border:1px solid var(--gbd);border-radius:6px;padding:9px 12px;margin-bottom:6px">';
+        mgmtReviewHtml+='<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:4px">';
+        mgmtReviewHtml+='<div><span class="cid">'+c.id+'</span> &middot; <strong>'+(c.cust||'-')+'</strong> &middot; '+(c.en||'-')+'</div>';
+        mgmtReviewHtml+='<div style="font-size:11px;font-weight:700;color:var(--rd)">Variance: '+v+'%</div></div>';
+        mgmtReviewHtml+='<div style="font-size:10px;color:var(--gt);margin-bottom:5px">Claim: $'+(c.claimAmt||0).toFixed(0)+' &middot; Proposed credit: $'+(c.proposedCredit||0).toFixed(0)+' &middot; Flagged by '+(c.flaggedBy||'Finance')+'</div>';
+        mgmtReviewHtml+='<div style="font-size:11px;color:var(--gt);font-style:italic;margin-bottom:6px">"'+(c.flaggedReason||'No reason given')+'"</div>';
+        mgmtReviewHtml+='<div style="display:flex;gap:5px"><button class="btn b-gn" style="font-size:10px" onclick="mgmtApproveCredit(\''+c.id+'\')">Approve Credit</button><button class="btn b-rd" style="font-size:10px" onclick="mgmtRejectCredit(\''+c.id+'\')">Reject Credit</button><button class="btn b-gh" style="font-size:10px" onclick="openDP(\''+c.id+'\')">View</button></div>';
+        mgmtReviewHtml+='</div>';
+      });
+      mgmtReviewHtml+='</div>';
+    }
 
     var taskHtml='';
     if(allAppr.length){taskHtml+='<div class="task-item urgent"><div class="task-dot rd"></div><div style="flex:1"><div style="font-size:12px;font-weight:700;color:var(--rd)">'+allAppr.length+' claim(s) pending manager approval</div><div style="font-size:10px;color:var(--gt)">HYD010: '+CLAIMS.filter(function(c){return c.s==="appr"&&c.loc==="HYD010";}).length+' &middot; HYD020: '+CLAIMS.filter(function(c){return c.s==="appr"&&c.loc==="HYD020";}).length+'</div></div></div>';}
@@ -2352,21 +2644,56 @@ function renderDashboard(){
     dc.innerHTML=
       '<div class="cg cg4" style="margin-bottom:16px">'+
         '<div class="sc rd" style="cursor:pointer" onclick="nav(&quot;all&quot;,document.getElementById(&quot;ni-all&quot;))"><div class="sc-l">Pending Approvals</div><div class="sc-v rd">'+allAppr.length+'</div><div class="sc-s">Both locations</div></div>'+
-        '<div class="sc or"><div class="sc-l">Open Info Requests</div><div class="sc-v or">'+allIRs.length+'</div></div>'+
+        '<div class="sc '+(flaggedForMgmt.length?'rd':'gn')+'"><div class="sc-l">Finance Review Queue</div><div class="sc-v '+(flaggedForMgmt.length?'rd':'gn')+'">'+flaggedForMgmt.length+'</div>'+(flaggedForMgmt.length?'<div class="sc-s">Action required</div>':'')+'</div>'+
         '<div class="sc am"><div class="sc-l">Validity Checks</div><div class="sc-v am">'+validityPending+'</div></div>'+
         '<div class="sc bl"><div class="sc-l">Avg AI Score</div><div class="sc-v bl">'+aiAvg+'</div><div class="sc-s">All claims</div></div>'+
       '</div>'+
+      mgmtReviewHtml+
       '<div class="sl2">Outstanding Tasks — Both Locations</div>'+
       '<div style="background:var(--wh);border-radius:9px;border:1px solid var(--gbd);overflow:hidden;margin-bottom:14px">'+taskHtml+'</div>'+
       '<div class="sl2" style="margin-top:14px">Cash Flow Pipeline</div>'+
       '<div class="cg cg4">'+
-        '<div class="sc bl"><div class="sc-l">In Progress</div><div class="sc-v bl">$'+CLAIMS.filter(function(c){return['new','ins','appr'].includes(c.s);}).reduce(function(a,c){return a+(c.claimAmt||0);},0).toFixed(0)+'</div><div class="sc-s">Not yet submitted</div></div>'+
-        '<div class="sc or"><div class="sc-l">Submitted to OEM</div><div class="sc-v or">$'+CLAIMS.filter(function(c){return c.s==='sub';}).reduce(function(a,c){return a+(c.claimAmt||0);},0).toFixed(0)+'</div><div class="sc-s">Awaiting credit</div></div>'+
-        '<div class="sc am"><div class="sc-l">Pending Payment</div><div class="sc-v am">$'+CLAIMS.filter(function(c){return c.s==='pay';}).reduce(function(a,c){return a+(c.claimAmt||0);},0).toFixed(0)+'</div><div class="sc-s">Credit received</div></div>'+
-        '<div class="sc gn"><div class="sc-l">YTD Recovered</div><div class="sc-v gn">$25.8K</div><div class="sc-s">This year</div></div>'+
+        '<div class="sc bl"><div class="sc-l">In Progress</div><div class="sc-v bl">$'+CLAIMS.filter(function(c){return["new","ins","appr","draft"].includes(c.s);}).reduce(function(a,c){return a+(c.claimAmt||0);},0).toFixed(0)+'</div><div class="sc-s">Not yet submitted</div></div>'+
+        '<div class="sc or"><div class="sc-l">Submitted to OEM</div><div class="sc-v or">$'+CLAIMS.filter(function(c){return c.s==="sub";}).reduce(function(a,c){return a+(c.claimAmt||0);},0).toFixed(0)+'</div><div class="sc-s">Awaiting credit</div></div>'+
+        '<div class="sc am"><div class="sc-l">Pending Payment</div><div class="sc-v am">$'+CLAIMS.filter(function(c){return c.s==="pay";}).reduce(function(a,c){return a+(c.claimAmt||0);},0).toFixed(0)+'</div><div class="sc-s">Credit received</div></div>'+
+        '<div class="sc gn"><div class="sc-l">YTD Recovered</div><div class="sc-v gn">$'+(typeof ARCHIVE_CLAIMS!=="undefined"?ARCHIVE_CLAIMS.reduce(function(a,c){return a+(c.recovered||0);},0).toLocaleString():"0")+'</div><div class="sc-s">This year</div></div>'+
       '</div>';
     return;
   }
+}
+
+function mgmtApproveCredit(claimId){
+  var c=getClaim(claimId);if(!c)return;
+  var crNum=c.proposedCredit||0;
+  var cn=c.proposedCreditNote||'';
+  var crEl=document.getElementById('cr-'+claimId);
+  var cnEl=document.getElementById('cn-'+claimId);
+  if(crEl)crEl.value=crNum;
+  if(cnEl)cnEl.value=cn;
+  c.flaggedForMgmt=false;
+  c.mgmtApproved=true;
+  c.mgmtApprovedBy=CU?CU.name:'Management';
+  c.mgmtApprovedDate=new Date().toISOString();
+  apiPost('saveClaim',{claim:c});
+  apiPost('saveNote',{claimId:claimId,author:CU?CU.name:'Management',role:'mgmt',
+    text:'Management approved credit of $'+crNum+'. Variance '+(c.proposedVariance||0)+'% accepted.',type:'mgmt-approved'});
+  showToast(claimId+' approved by management - Finance can now finalize');
+  refreshAll();
+}
+
+function mgmtRejectCredit(claimId){
+  var reason=prompt('Reason for rejecting this credit (will go back to Finance with note):');
+  if(!reason)return;
+  var c=getClaim(claimId);if(!c)return;
+  c.flaggedForMgmt=false;
+  c.mgmtRejected=true;
+  c.mgmtRejectedBy=CU?CU.name:'Management';
+  c.mgmtRejectedReason=reason;
+  apiPost('saveClaim',{claim:c});
+  apiPost('saveNote',{claimId:claimId,author:CU?CU.name:'Management',role:'mgmt',
+    text:'Management rejected credit. Reason: '+reason,type:'mgmt-rejected'});
+  showToast(claimId+' returned to Finance - rejected by management');
+  refreshAll();
 }
 
 function nav(p,ni){
@@ -2667,7 +2994,8 @@ function ncFinalSubmit(){
   var complaint=q1;
   var cause=q3;
   var correction=(q6?q6+' ':'')+q7;
-  if(CLAIMS.find(function(c){return c.id===ref;})){showToast('Claim '+ref+' already exists');return;}
+  var _existingClaim=CLAIMS.find(function(c){return c.id===ref;});
+  if(_existingClaim&&_existingClaim.s!=='draft'){showToast('Claim '+ref+' already submitted');return;}
   // Update draft if exists, otherwise insert new
   var _existing=CLAIMS.find(function(x){return x.id===ref;});
   if(_existing){
@@ -3297,6 +3625,56 @@ function renderAdminOverview(){
     subsHtml+=emptyRow("No claims waiting OEM submission. All caught up.");
   }
 
+  // ── 3.5 PENDING PAYMENT TRACKING ──────────────────────────────────
+  var paymentWindows={Kubota:30,Toro:45,Walker:30,Stihl:30,'Briggs & Stratton':45,Arctic:60,Wright:30,Greenworks:45};
+  var awaitingPayment=CLAIMS.filter(function(c){return c.s==='pay'&&c.oemClaimNum;});
+  var paymentTrackingHtml=sectionHdr("&#128181;","Pending OEM Payment",awaitingPayment.length,'b','recon','ni-recon');
+  if(awaitingPayment.length){
+    // Sort by days since submission, oldest first
+    awaitingPayment.sort(function(a,b){
+      var aDays=a.submittedAt?Math.floor((Date.now()-new Date(a.submittedAt).getTime())/86400000):0;
+      var bDays=b.submittedAt?Math.floor((Date.now()-new Date(b.submittedAt).getTime())/86400000):0;
+      return bDays-aDays;
+    });
+    paymentTrackingHtml+=awaitingPayment.map(function(c){
+      var daysSinceSubmit=c.submittedAt?Math.floor((Date.now()-new Date(c.submittedAt).getTime())/86400000):0;
+      var workToSubmit=c.workCompleted&&c.submittedAt?Math.floor((new Date(c.submittedAt).getTime()-new Date(c.workCompleted).getTime())/86400000):null;
+      var window=paymentWindows[c.oem]||45;
+      var pct=Math.min(100,(daysSinceSubmit/window)*100);
+      var status,statusColor;
+      if(daysSinceSubmit>window){status='OVERDUE';statusColor='var(--rd)';}
+      else if(daysSinceSubmit>window*0.75){status='AT RISK';statusColor='var(--am)';}
+      else{status='ON TRACK';statusColor='var(--gn)';}
+      var workToSubmitFlag=workToSubmit!==null&&workToSubmit>14?'<span style="background:var(--rdl);color:var(--rd);padding:2px 6px;border-radius:4px;font-size:9px;font-weight:700;margin-left:5px">SLOW SUBMIT: '+workToSubmit+'d</span>':'';
+      return'<div class="ao-row" onclick="openDP(&quot;'+c.id+'&quot;)">'+
+        '<div style="flex:1">'+
+          '<div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-bottom:3px">'+
+            '<span class="cid">'+c.id+'</span>'+
+            '<span style="background:'+statusColor+';color:#fff;padding:2px 7px;border-radius:4px;font-size:9px;font-weight:700">'+status+'</span>'+
+            '<span style="font-family:monospace;font-size:10px;color:var(--gl)">'+c.oemClaimNum+'</span>'+
+            workToSubmitFlag+
+          '</div>'+
+          '<div style="font-size:11px;font-weight:600">'+c.cust+' &middot; '+c.en+' &middot; <span style="color:var(--bl)">$'+c.claimAmt.toFixed(0)+'</span></div>'+
+          '<div style="font-size:10px;color:var(--gt);margin-top:2px">'+c.oem+' &middot; Submitted '+daysSinceSubmit+'d ago &middot; Expected within '+window+'d</div>'+
+          '<div style="height:4px;background:#eee;border-radius:2px;margin-top:5px;overflow:hidden"><div style="height:100%;background:'+statusColor+';width:'+pct+'%"></div></div>'+
+        '</div>'+
+      '</div>';
+    }).join('');
+    // Summary stats
+    var totalValue=awaitingPayment.reduce(function(s,c){return s+(c.claimAmt||0);},0);
+    var avgWorkToSubmit=0,wToSCount=0;
+    awaitingPayment.forEach(function(c){
+      if(c.workCompleted&&c.submittedAt){
+        var d=Math.floor((new Date(c.submittedAt).getTime()-new Date(c.workCompleted).getTime())/86400000);
+        avgWorkToSubmit+=d;wToSCount++;
+      }
+    });
+    if(wToSCount)avgWorkToSubmit=(avgWorkToSubmit/wToSCount).toFixed(1);
+    paymentTrackingHtml+='<div style="padding:8px 16px;background:#F8F8F7;font-size:11px;color:var(--gt);display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px"><span>Total awaiting: <strong>$'+totalValue.toLocaleString()+'</strong></span><span>Avg work→submit: <strong>'+avgWorkToSubmit+'d</strong></span></div>';
+  } else {
+    paymentTrackingHtml+=emptyRow("No claims currently awaiting OEM payment.");
+  }
+
   // ── 3. OTHER TASKS ────────────────────────────────────────────────
   var tasksHtml=sectionHdr("&#10003;","Other Tasks",openWOs.length+disposeNow.length+disposeSoon.length,'bl',null,null);
   var taskRows='';
@@ -3333,6 +3711,8 @@ function renderAdminOverview(){
     validityHtml+
     '<div style="height:1px;background:var(--gbd);margin:0"></div>'+
     subsHtml+
+    '<div style="height:1px;background:var(--gbd);margin:0"></div>'+
+    paymentTrackingHtml+
     '<div style="height:1px;background:var(--gbd);margin:0"></div>'+
     tasksHtml+
     '<div style="height:1px;background:var(--gbd);margin:0"></div>'+
@@ -3721,6 +4101,84 @@ function renderAnalytics(){
   } else {
     html+='<div style="background:var(--wh);border-radius:9px;border:1px solid var(--gbd);padding:18px;text-align:center;color:var(--gl);font-size:11px;margin-bottom:14px">Monthly trend populates as closed WOs accumulate.</div>';
   }
+
+  // ── OEM Payment Timing — for Warranty Admin and Management ──────────
+  if(CU&&(CU.role==='admin'||CU.role==='mgmt'||CU.role==='mgr')){
+    var paymentWindows={Kubota:30,Toro:45,Walker:30,Stihl:30,'Briggs & Stratton':45,Arctic:60,Wright:30,Greenworks:45};
+    var awaitingPay=CLAIMS.filter(function(c){return c.s==='pay'&&c.oemClaimNum&&c.submittedAt;});
+    // Filter by location if mgr
+    if(isMgr)awaitingPay=awaitingPay.filter(function(c){return c.loc===myLoc;});
+
+    // Group by OEM
+    var oemPayMap={};
+    awaitingPay.forEach(function(c){
+      var oem=c.oem||'Unknown';
+      if(!oemPayMap[oem])oemPayMap[oem]={oem:oem,count:0,value:0,onTrack:0,atRisk:0,overdue:0,avgDays:0,window:paymentWindows[oem]||45,sumDays:0};
+      var d=Math.floor((Date.now()-new Date(c.submittedAt).getTime())/86400000);
+      oemPayMap[oem].count++;
+      oemPayMap[oem].value+=c.claimAmt||0;
+      oemPayMap[oem].sumDays+=d;
+      var w=paymentWindows[oem]||45;
+      if(d>w)oemPayMap[oem].overdue++;
+      else if(d>w*0.75)oemPayMap[oem].atRisk++;
+      else oemPayMap[oem].onTrack++;
+    });
+    Object.values(oemPayMap).forEach(function(o){o.avgDays=o.count>0?Math.round(o.sumDays/o.count):0;});
+    var oemPayList=Object.values(oemPayMap).sort(function(a,b){return b.value-a.value;});
+
+    if(oemPayList.length){
+      html+='<div class="sl2">OEM Payment Timing — Outstanding by OEM</div>';
+      html+='<div style="background:var(--wh);border-radius:9px;border:1px solid var(--gbd);overflow:hidden;margin-bottom:14px">';
+      html+='<div style="display:grid;grid-template-columns:1.5fr 1fr 1fr 1fr 1fr 1fr;gap:8px;padding:10px 14px;background:#F8F8F7;font-size:10px;font-weight:700;color:var(--gt);text-transform:uppercase">';
+      html+='<div>OEM</div><div style="text-align:right">Claims</div><div style="text-align:right">Value</div><div style="text-align:right">Avg Days</div><div style="text-align:right">Window</div><div style="text-align:right">Status</div></div>';
+      oemPayList.forEach(function(o){
+        var stCol=o.overdue>0?'var(--rd)':o.atRisk>0?'var(--am)':'var(--gn)';
+        var stTxt=o.overdue>0?o.overdue+' overdue':o.atRisk>0?o.atRisk+' at risk':'On track';
+        html+='<div style="display:grid;grid-template-columns:1.5fr 1fr 1fr 1fr 1fr 1fr;gap:8px;padding:10px 14px;border-top:1px solid var(--gbd);font-size:11px;align-items:center">';
+        html+='<div style="font-weight:600">'+o.oem+'</div>';
+        html+='<div style="text-align:right">'+o.count+'</div>';
+        html+='<div style="text-align:right;font-weight:600">$'+(o.value>=1000?(o.value/1000).toFixed(1)+'K':o.value.toFixed(0))+'</div>';
+        html+='<div style="text-align:right">'+o.avgDays+'d</div>';
+        html+='<div style="text-align:right;color:var(--gt)">'+o.window+'d</div>';
+        html+='<div style="text-align:right"><span style="background:'+stCol+';color:#fff;padding:2px 7px;border-radius:4px;font-size:9px;font-weight:700">'+stTxt+'</span></div>';
+        html+='</div>';
+      });
+      html+='</div>';
+    }
+
+    // ── Submission lag analysis (work completed → submitted) ──────────
+    var subLag=[];
+    CLAIMS.concat(typeof ARCHIVE_CLAIMS!=='undefined'?ARCHIVE_CLAIMS:[]).forEach(function(c){
+      if(c.workCompleted&&c.submittedAt){
+        if(isMgr&&c.loc!==myLoc)return;
+        var d=Math.floor((new Date(c.submittedAt).getTime()-new Date(c.workCompleted).getTime())/86400000);
+        if(d>=0)subLag.push({id:c.id,tech:c.tech||'-',cust:c.cust||'-',days:d});
+      }
+    });
+
+    if(subLag.length){
+      var avgLag=Math.round(subLag.reduce(function(a,c){return a+c.days;},0)/subLag.length);
+      var slowSubmits=subLag.filter(function(s){return s.days>14;}).sort(function(a,b){return b.days-a.days;}).slice(0,10);
+      html+='<div class="sl2">Submission Lag Analysis (Work Completed → OEM Submitted)</div>';
+      html+='<div style="background:var(--wh);border-radius:9px;border:1px solid var(--gbd);padding:14px;margin-bottom:14px">';
+      html+='<div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:'+(slowSubmits.length?'12px':'0')+'">';
+      html+='<div><div style="font-size:10px;color:var(--gt);font-weight:600;text-transform:uppercase">Average Lag</div><div style="font-size:22px;font-weight:700;color:'+(avgLag>14?'var(--rd)':avgLag>7?'var(--am)':'var(--gn)')+'">'+avgLag+' days</div></div>';
+      html+='<div><div style="font-size:10px;color:var(--gt);font-weight:600;text-transform:uppercase">Slow Submits (&gt;14d)</div><div style="font-size:22px;font-weight:700;color:'+(slowSubmits.length>0?'var(--rd)':'var(--gn)')+'">'+slowSubmits.length+'</div></div>';
+      html+='<div><div style="font-size:10px;color:var(--gt);font-weight:600;text-transform:uppercase">Total Tracked</div><div style="font-size:22px;font-weight:700;color:var(--bl)">'+subLag.length+'</div></div>';
+      html+='</div>';
+      if(slowSubmits.length){
+        html+='<div style="font-size:10px;color:var(--gt);font-weight:700;text-transform:uppercase;margin-bottom:7px">Slowest Submissions</div>';
+        slowSubmits.forEach(function(s){
+          html+='<div style="background:#FFFBF0;border:1px solid #FFD0A0;border-radius:6px;padding:6px 10px;margin-bottom:4px;display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">';
+          html+='<div style="font-size:11px"><span class="cid">'+s.id+'</span> &middot; '+s.cust+' &middot; Tech: '+s.tech+'</div>';
+          html+='<div style="font-size:11px;font-weight:700;color:var(--rd)">'+s.days+' days</div>';
+          html+='</div>';
+        });
+      }
+      html+='</div>';
+    }
+  }
+
   el.innerHTML=html;
 }
 
@@ -3742,17 +4200,10 @@ async function runAIRewrite(){
   var prompt='You are a warranty claim specialist for Hyde Park Equipment Ltd., a Kubota/Toro/Walker/Stihl dealer in Ontario, Canada. Rewrite these technician answers into professional OEM warranty claim narratives.\n\nOEM: '+oem+'\nEquipment: '+model+'\n\nTechnician answers:\nQ1 - What operator reported: '+q1+'\nQ2 - When/conditions: '+q2+'\nQ3 - What failed/root cause: '+q3+'\nQ4 - Diagnostics: '+q4+'\nQ6 - What was repaired: '+q6+'\nQ7 - Full repair procedure: '+q7+'\n\nWrite professional complaint, cause, and correction. Be specific and technical. Include machine hours if mentioned. Each section 2-4 sentences max.\n\nReturn ONLY valid JSON (no markdown):\n{"complaint":"...","cause":"...","correction":"..."}';
   
   try{
-    var resp=await fetch('https://api.anthropic.com/v1/messages',{
-      method:'POST',
-      headers:{'Content-Type':'application/json','anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
-      body:JSON.stringify({
-        model:'claude-sonnet-4-20250514',max_tokens:800,
-        messages:[{role:'user',content:prompt}]
-      })
-    });
-    var data=await resp.json();
-    var text=data.content[0].text.trim();
-    var result=JSON.parse(text.replace(/```json|```/g,'').trim());
+    // Route through Apps Script proxy
+    var proxyResult=await apiPost('proxyAI',{prompt:prompt,maxTokens:800});
+    if(!proxyResult||!proxyResult.text)throw new Error('AI unavailable');
+    var result=JSON.parse(proxyResult.text.replace(/```json|```/g,'').trim());
     
     if(outEl){
       outEl.innerHTML=
@@ -3968,6 +4419,57 @@ async function refreshWOsFromDrive(){
   } else {
     showToast('Import failed - check Drive folder has a CSV file');
   }
+}
+
+
+// ── CLAIM AGE HELPERS (status-based) ──────────────────────────────────
+function daysSinceUpdate(c){
+  if(!c)return 0;
+  var ref=c.lastStatusUpdate||c.dateCreated;
+  if(!ref)return 0;
+  var d=new Date(ref);
+  if(isNaN(d.getTime()))return 0;
+  return Math.floor((Date.now()-d.getTime())/86400000);
+}
+function daysSinceContact(c){
+  if(!c)return 999;
+  var ref=c.lastContactDate||c.dateCreated;
+  if(!ref)return 999;
+  var d=new Date(ref);
+  if(isNaN(d.getTime()))return 999;
+  return Math.floor((Date.now()-d.getTime())/86400000);
+}
+function logContact(claimId){
+  var note=prompt('Customer contact note (e.g. called, left voicemail, scheduled appointment):');
+  if(!note||!note.trim())return;
+  var claim=getClaim(claimId);if(!claim)return;
+  claim.lastContactDate=new Date().toISOString();
+  if(!claim.contactLog)claim.contactLog=[];
+  claim.contactLog.push({date:new Date().toISOString(),by:CU?CU.name:'',note:note.trim()});
+  apiPost('saveClaim',{claim:claim});
+  apiPost('saveNote',{claimId:claimId,author:CU?CU.name:'',role:CU?CU.role:'',text:'Contact: '+note.trim(),type:'contact'});
+  showToast('Contact logged for '+claimId+' — clock reset');
+  refreshAll();
+}
+function logStatusUpdate(claimId){
+  var note=prompt('Status update note (e.g. parts on order, awaiting customer approval):');
+  if(!note||!note.trim())return;
+  var claim=getClaim(claimId);if(!claim)return;
+  claim.lastStatusUpdate=new Date().toISOString();
+  if(!claim.statusLog)claim.statusLog=[];
+  claim.statusLog.push({date:new Date().toISOString(),by:CU?CU.name:'',note:note.trim()});
+  apiPost('saveClaim',{claim:claim});
+  apiPost('saveNote',{claimId:claimId,author:CU?CU.name:'',role:CU?CU.role:'',text:'Status: '+note.trim(),type:'status'});
+  showToast('Status updated for '+claimId+' — clock reset');
+  refreshAll();
+}
+
+// ── DISPOSAL DATE HELPERS ─────────────────────────────────────────────
+function daysToDisposal(disposeDate){
+  if(!disposeDate)return null;
+  var d=new Date(disposeDate);
+  if(isNaN(d.getTime()))return null;
+  return Math.floor((d.getTime()-Date.now())/86400000);
 }
 
 // ── PHOTO UTILS ───────────────────────────────────────────────────────
