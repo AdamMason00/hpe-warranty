@@ -1746,7 +1746,7 @@ function renderAgeAlerts(claims,cid){
 function renderMyBanner(){
   if(!CU)return;
   var m=getMyClaims();var aged=m.filter(function(c){return ageDays(c.age)>=20;}).length;
-  if(CU.role==='admin'){renderAdminOverview();return;}
+  if(CU.role==='admin'){try{renderAdminOverview();}catch(e){console.error('renderAdminOverview failed:',e);renderMyClaims();}return;}
   if(CU.role==='sa')return; // SA has no My Claims page
   var _s=function(id,v){var el=document.getElementById(id);if(el)el.textContent=v;};
   var _mgrLoc=CU.role==='mgr'?(getMgrLocation(CU.name)==='HYD020'?' — North':' — South'):'';
@@ -2713,7 +2713,11 @@ function nav(p,ni){
   var _p=p;
   setTimeout(function(){
     try{
-      if(_p==='my'){renderMyBanner();renderMyClaims();}
+      if(_p==='my'){
+        console.log('NAV→my: role='+(CU?CU.role:'?')+', tc found=',!!document.querySelector('#pg-my .tc'),'aotc found=',!!document.getElementById('admin-overview-tc'));
+        try{renderMyBanner();}catch(e){console.error('renderMyBanner failed:',e);}
+        try{renderMyClaims();}catch(e){console.error('renderMyClaims failed:',e);}
+      }
       if(_p==='all')renderAllClaims();
       if(_p==='subs')renderSubsTable();
       if(_p==='appr')renderApprTable();
@@ -3657,7 +3661,7 @@ function renderAdminOverview(){
             '<span style="font-family:monospace;font-size:10px;color:var(--gl)">'+c.oemClaimNum+'</span>'+
             workToSubmitFlag+
           '</div>'+
-          '<div style="font-size:11px;font-weight:600">'+c.cust+' &middot; '+c.en+' &middot; <span style="color:var(--bl)">$'+c.claimAmt.toFixed(0)+'</span></div>'+
+          '<div style="font-size:11px;font-weight:600">'+(c.cust||'-')+' &middot; '+(c.en||'-')+' &middot; <span style="color:var(--bl)">$'+((c.claimAmt||0).toFixed(0))+'</span></div>'+
           '<div style="font-size:10px;color:var(--gt);margin-top:2px">'+c.oem+' &middot; Submitted '+daysSinceSubmit+'d ago &middot; Expected within '+window+'d</div>'+
           '<div style="height:4px;background:#eee;border-radius:2px;margin-top:5px;overflow:hidden"><div style="height:100%;background:'+statusColor+';width:'+pct+'%"></div></div>'+
         '</div>'+
@@ -3699,7 +3703,7 @@ function renderAdminOverview(){
             partStatusHtml(c.disposeDate)+
           '</div>'+
           '<div style="font-size:11px;font-weight:600">'+c.cust+' &middot; '+c.en+'</div>'+
-          '<div style="font-size:10px;color:var(--gt)">'+c.oem+' &middot; Recovered: <strong style="color:var(--gn)">$'+c.recovered.toLocaleString()+'</strong> &middot; '+c.closedDate+'</div>'+
+          '<div style="font-size:10px;color:var(--gt)">'+(c.oem||'')+' &middot; Recovered: <strong style="color:var(--gn)">$'+((c.recovered||0).toLocaleString())+'</strong> &middot; '+(c.closedDate||'')+'</div>'+
         '</div>'+
         '<span style="font-size:9px;color:var(--gl);flex-shrink:0">'+c.oemClaimNum+'</span>'+
       '</div>';
