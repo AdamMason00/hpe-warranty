@@ -2701,7 +2701,7 @@ function nav(p,ni){
   if(CU&&CU.role==='sa'&&(p==='my'||p==='all'||p==='inspect'||p==='claim')){p='wo';ni=document.getElementById('ni-wo');}
   var mcbEl=document.querySelector('.mcb');if(mcbEl)mcbEl.style.display='';
   var aotc=document.getElementById('admin-overview-tc');
-  if(aotc&&p!=='my'){aotc.id='';aotc.innerHTML='<div class="tc-h"><span class="tc-t" id="my-tt">Active claims</span><input class="srch" placeholder="Search..." oninput="filterMyC(this.value)"></div><table><thead><tr><th>Claim #</th><th>Customer</th><th>Equipment</th><th>OEM</th><th>Status</th><th>Priority</th><th>Age</th><th>Info Req</th></tr></thead><tbody id="my-body"></tbody></table>';}
+  if(aotc&&p!=='my'){aotc.id='';aotc.className='tc';aotc.removeAttribute('style');aotc.innerHTML='<div class="tc-h"><span class="tc-t" id="my-tt">Active claims</span><input class="srch" placeholder="Search..." oninput="filterMyC(this.value)"></div><table><thead><tr><th>Claim #</th><th>Customer</th><th>Equipment</th><th>OEM</th><th>Status</th><th>Priority</th><th>Age</th><th>Info Req</th></tr></thead><tbody id="my-body"></tbody></table>';}
   document.querySelectorAll('[id^="pg-"]').forEach(function(el){el.style.display='none';});
   var page=document.getElementById('pg-'+p);if(page)page.style.display='block';
   document.querySelectorAll('.ni').forEach(function(n){n.classList.remove('on');});
@@ -2713,6 +2713,8 @@ function nav(p,ni){
   var _p=p;
   setTimeout(function(){
     try{
+      if(_p==='my'){renderMyBanner();renderMyClaims();}
+      if(_p==='all')renderAllClaims();
       if(_p==='subs')renderSubsTable();
       if(_p==='appr')renderApprTable();
       if(_p==='ir')renderIRList();
@@ -2722,6 +2724,7 @@ function nav(p,ni){
       if(_p==='archive')renderArchive();
       if(_p==='analytics')renderAnalytics();
       if(_p==='wo-review')renderWOReview();
+      if(_p==='wo')renderWOList();
     }catch(e){console.error('Render error for page '+_p+':',e);}
   },0);
 }
@@ -3548,7 +3551,7 @@ function renderAdminOverview(){
   var myIrSec=document.getElementById('my-ir-sec');if(myIrSec)myIrSec.innerHTML='';
   var ageAlerts=document.getElementById('my-age-alerts');if(ageAlerts)ageAlerts.innerHTML='';
 
-  var tc=document.querySelector('#pg-my .tc');
+  var tc=document.querySelector('#pg-my .tc')||document.getElementById('admin-overview-tc');
   if(!tc)return;
 
   // ── DATA ────────────────────────────────────────────────────────
