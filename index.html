@@ -597,7 +597,7 @@ tr.clickable:hover td{background:#FFF3EC;cursor:pointer}
   <div class="ni" id="ni-my" onclick="nav('my',this)"><span class="ni-ic">&#128100;</span>My Claims<span class="nbg w" id="my-cnt">0</span><span class="nbg r" id="my-ir-badge" style="display:none">0</span></div>
   <div class="ni" id="ni-wo" onclick="nav('wo',this)"><span class="ni-ic">&#128203;</span>Pending WOs<span class="nbg w" id="wo-cnt">0</span></div>
   <div class="ni" id="ni-nc" onclick="nav('claim',this)"><span class="ni-ic">+</span>New Claim</div>
-  <div class="ni" id="ni-tasks" style="display:none" onclick="nav('tasks',this)"><span class="ni-ic">&#10003;</span>Task List<span class="nbg r" id="task-cnt">0</span></div>
+  <div class="ni" id="ni-tasks" style="display:none" onclick="nav('tasks',this)"><span class="ni-ic">&#10003;</span>Workflow Queue<span class="nbg r" id="task-cnt">0</span></div>
   <div class="s-lbl">Workflow</div>
   <div class="ni" id="ni-all" onclick="nav('all',this)"><span class="ni-ic">&#8801;</span>All Claims<span class="nbg w" id="all-cnt">0</span></div>
   <div class="ni" id="ni-inspect" onclick="nav('inspect',this)"><span class="ni-ic">&#128269;</span>Inspection<span class="nbg w" id="inspect-cnt">0</span></div>
@@ -699,7 +699,7 @@ tr.clickable:hover td{background:#FFF3EC;cursor:pointer}
 
 <!-- TASK LIST -->
 <div id="pg-tasks" style="display:none">
-  <div class="ph"><div><div class="pt">Task List</div><div class="psub">Andy  -  items requiring your attention</div></div></div>
+  <div class="ph"><div><div class="pt">Workflow Queue</div><div class="psub">Andy — ordered by priority, top to bottom</div></div></div>
   <div class="co" id="task-content"></div>
 </div>
 
@@ -809,6 +809,7 @@ tr.clickable:hover td{background:#FFF3EC;cursor:pointer}
   <div class="nav" id="nc-nav">
     <button class="btn b-gh" id="nc-bk" onclick="ncBack()" style="visibility:hidden;font-size:11px">Back</button>
     <span class="si2" id="nc-si">Step 1 of 5</span>
+    <button class="btn b-bl" onclick="ncSaveDraft()" style="font-size:11px">Save & Return Later</button>
     <button class="btn b-or" id="nc-nx" onclick="ncNext()" style="font-size:11px">Next</button>
   </div>
 </div>
@@ -1060,9 +1061,13 @@ function updateClaimStatus(id,s,sl,ex){
 }
 function refreshAll(){
   if(!CU)return;
-  renderMyClaims();renderAllClaims();renderSubsTable();renderApprTable();renderIRList();renderTaskList();renderReconQueue();renderMyBanner();renderTechPerf();updateValidityCounts();
-  var allCnt=document.getElementById('all-cnt');if(allCnt)allCnt.textContent=CLAIMS.length;
-  var irCnt=document.getElementById('ir-cnt');if(irCnt)irCnt.textContent=IR_DATA.filter(function(r){return!r.resolved;}).length;
+  var fns=['renderMyClaims','renderAllClaims','renderSubsTable','renderApprTable','renderIRList','renderTaskList','renderReconQueue','renderMyBanner','renderTechPerf','updateValidityCounts'];
+  fns.forEach(function(fn){
+    try{if(typeof window[fn]==='function')window[fn]();}
+    catch(e){console.error('refreshAll: '+fn+' failed:',e);}
+  });
+  try{var allCnt=document.getElementById('all-cnt');if(allCnt)allCnt.textContent=CLAIMS.length;}catch(e){}
+  try{var irCnt=document.getElementById('ir-cnt');if(irCnt)irCnt.textContent=IR_DATA.filter(function(r){return!r.resolved;}).length;}catch(e){}
 }
 function closeModal(id){document.getElementById(id).classList.remove('open');}
 function ageDays(a){var m=a&&a.match(/(\d+)d/);return m?parseInt(m[1]):0;}
@@ -1803,7 +1808,16 @@ function renderAllClaims(d){
   renderAgeAlerts(data,'all-age-alerts');
   var aEl=document.getElementById('all-aged-count');if(aEl)aEl.textContent=data.filter(function(c){return ageDays(c.age)>=20;}).length;
   var tEl=document.getElementById('all-total');if(tEl)tEl.textContent=data.length;
-  var vEl=document.getElementById('all-value');if(vEl){var tv=data.reduce(function(s,c){return s+(c.claimAmt||0);},0);vEl.textContent='$'+(tv>=1000?(tv/1000).toFixed(1)+'K':tv.toFixed(0));}
+  var vEl=document.getElementById('all-value');
+  if(vEl){
+    if(noFinancials()){
+      vEl.textContent='-';
+      var card=vEl.closest('.sc');if(card)card.style.display='none';
+    } else {
+      var tv=data.reduce(function(s,c){return s+(c.claimAmt||0);},0);
+      vEl.textContent='$'+(tv>=1000?(tv/1000).toFixed(1)+'K':tv.toFixed(0));
+    }
+  }
   var insEl=document.getElementById('all-inspect');if(insEl)insEl.textContent=data.filter(function(c){return c.s==='ins';}).length;
   if(!data.length){b.innerHTML='<tr><td colspan="8" style="text-align:center;padding:22px;color:var(--gl)">No active claims.</td></tr>';return;}
   b.innerHTML=data.map(function(c){var ac=ageClass(c.age||'0d');var al=ageLabel(c.age||'0d');
@@ -1820,17 +1834,33 @@ function filterAllS(s,btn){
   else renderAllClaims(base.filter(function(c){return c.s===s;}));
 }
 
+function noFinancials(){return CU&&(CU.role==='admin'||CU.role==='mgr');}
+
 function renderSubsTable(){
   if(!CU)return;
   var b=document.getElementById('subs-body');if(!b)return;
   var base=CU&&CU.role==='mgr'?filterByLocation(CLAIMS):CLAIMS;
-  var subs=base.filter(function(c){return['sub','pay','oem'].includes(c.s)||c.oemClaimNum;});
+  var subs=base.filter(function(c){return c&&c.id&&(['sub','pay','oem'].includes(c.s)||c.oemClaimNum);});
   var awaiting=subs.filter(function(c){return c.s==='sub'&&!c.oemClaimNum;});
-  var pendVal=subs.reduce(function(s,c){return s+(c.claimAmt||0);},0);
   var awEl=document.getElementById('subs-await');if(awEl)awEl.textContent=awaiting.length;
-  var vEl=document.getElementById('subs-val');if(vEl)vEl.textContent='$'+(pendVal>=1000?(pendVal/1000).toFixed(1)+'K':pendVal.toFixed(0));
+  var vEl=document.getElementById('subs-val');
+  if(vEl){
+    if(noFinancials()){
+      vEl.textContent='-';
+      // Replace label too
+      var lbl=vEl.parentElement.querySelector('.sc-l');
+      if(lbl)lbl.textContent='Submitted Claims';
+      vEl.textContent=subs.length;
+    } else {
+      var pendVal=subs.reduce(function(s,c){return s+(c.claimAmt||0);},0);
+      vEl.textContent='$'+(pendVal>=1000?(pendVal/1000).toFixed(1)+'K':pendVal.toFixed(0));
+    }
+  }
+  var showFin=!noFinancials();
   b.innerHTML=subs.length?subs.map(function(c){var hasNum=c.oemClaimNum&&c.oemClaimNum.length>0;
-    return'<tr class="clickable" onclick="openDP(\''+c.id+'\')"><td><span class="cid">'+c.id+'</span></td><td style="font-weight:600;color:var(--or)">'+c.oem+'</td><td style="font-family:monospace;font-size:10px;color:var(--gl)">'+c.oemCode+'</td><td>'+c.cust+'</td><td>'+c.en+'</td><td>'+(c.tech||'-')+'</td><td style="font-family:monospace;font-size:10px;color:'+(hasNum?'var(--gn)':'var(--gl)')+'">'+( hasNum?c.oemClaimNum:' - ')+'</td><td><strong>$'+c.claimAmt.toFixed(0)+'</strong></td><td><span class="pill '+(PMAP[c.s]||'p-sub')+'">'+c.sl+'</span></td><td onclick="event.stopPropagation()">'+(hasNum?'<button class="btn b-gn" style="font-size:10px;padding:3px 7px" onclick="moveToPayment(\''+c.id+'\')">Pending Payment</button>':'<button class="btn b-or" style="font-size:10px;padding:3px 7px" onclick="openOEMPanel(\''+c.id+'\',\''+c.en.replace(/'/g,"")+'\')" >Enter Claim #</button>')+'</td></tr>';
+    var safeEn=(c.en||'').replace(/'/g,"");
+    var amtCell=showFin?'<td><strong>$'+((c.claimAmt||0).toFixed(0))+'</strong></td>':'<td>-</td>';
+    return'<tr class="clickable" onclick="openDP(\''+c.id+'\')"><td><span class="cid">'+c.id+'</span></td><td style="font-weight:600;color:var(--or)">'+(c.oem||'-')+'</td><td style="font-family:monospace;font-size:10px;color:var(--gl)">'+(c.oemCode||'')+'</td><td>'+(c.cust||'-')+'</td><td>'+(c.en||'-')+'</td><td>'+(c.tech||'-')+'</td><td style="font-family:monospace;font-size:10px;color:'+(hasNum?'var(--gn)':'var(--gl)')+'">'+( hasNum?c.oemClaimNum:' - ')+'</td>'+amtCell+'<td><span class="pill '+(PMAP[c.s]||'p-sub')+'">'+(c.sl||'')+'</span></td><td onclick="event.stopPropagation()">'+(hasNum?'<button class="btn b-gn" style="font-size:10px;padding:3px 7px" onclick="moveToPayment(\''+c.id+'\')">Pending Payment</button>':'<button class="btn b-or" style="font-size:10px;padding:3px 7px" onclick="openOEMPanel(\''+c.id+'\',\''+safeEn+'\')" >Enter Claim #</button>')+'</td></tr>';
   }).join(''):'<tr><td colspan="10" style="text-align:center;padding:18px;color:var(--gl)">No OEM submissions yet.</td></tr>';
 }
 
@@ -1839,11 +1869,14 @@ function renderApprTable(){
   var b=document.getElementById('appr-body');if(!b)return;
   var cnt=document.getElementById('appr-cnt');
   var base=CU&&CU.role==='mgr'?filterByLocation(CLAIMS):CLAIMS;
-  var appr=base.filter(function(c){return c.s==='appr';});
+  var appr=base.filter(function(c){return c&&c.id&&c.s==='appr';});
   if(cnt)cnt.textContent=appr.length;
-  b.innerHTML=appr.map(function(c){var ac=ageClass(c.age);var al=ageLabel(c.age);
+  var showFin=!noFinancials();
+  b.innerHTML=appr.map(function(c){var ac=ageClass(c.age||'0d');var al=ageLabel(c.age||'0d');
     var sc=c.aiScore||0;var scCol=sc>=8?'var(--gn)':sc>=6?'var(--am)':'var(--rd)';
-    return'<tr class="clickable" onclick="openDP(\''+c.id+'\')"><td><span class="cid">'+c.id+'</span></td><td>'+c.cust+'</td><td><div class="en">'+c.en+'</div></td><td>'+c.oem+'</td><td>'+c.tech+'</td><td><span class="loc-badge loc-'+c.loc.toLowerCase()+'">'+c.loc+'</span></td><td><strong>$'+c.claimAmt.toFixed(0)+'</strong></td><td><span style="font-size:13px;font-weight:700;color:'+scCol+'">'+sc.toFixed(1)+'</span><span style="font-size:9px;color:var(--gl)">/10</span></td><td><span class="'+ac+'">'+al+'</span></td><td onclick="event.stopPropagation()"><div style="display:flex;gap:4px"><button class="btn b-gn" style="font-size:10px;padding:4px 7px" onclick="approveClaim(\''+c.id+'\')">Approve</button><button class="btn b-bl" style="font-size:10px;padding:4px 7px" onclick="approveWithEdits(\''+c.id+'\')">Approve+AI</button><button class="btn b-rd" style="font-size:10px;padding:4px 7px" onclick="returnForInfo(\''+c.id+'\')">Return</button></div></td></tr>';
+    var locDisp=c.loc?'<span class="loc-badge loc-'+c.loc.toLowerCase()+'">'+c.loc+'</span>':'';
+    var amtCell=showFin?'<td><strong>$'+((c.claimAmt||0).toFixed(0))+'</strong></td>':'<td>-</td>';
+    return'<tr class="clickable" onclick="openDP(\''+c.id+'\')"><td><span class="cid">'+c.id+'</span></td><td>'+(c.cust||'-')+'</td><td><div class="en">'+(c.en||'-')+'</div></td><td>'+(c.oem||'-')+'</td><td>'+(c.tech||'-')+'</td><td>'+locDisp+'</td>'+amtCell+'<td><span style="font-size:13px;font-weight:700;color:'+scCol+'">'+sc.toFixed(1)+'</span><span style="font-size:9px;color:var(--gl)">/10</span></td><td><span class="'+ac+'">'+al+'</span></td><td onclick="event.stopPropagation()"><div style="display:flex;gap:4px"><button class="btn b-gn" style="font-size:10px;padding:4px 7px" onclick="approveClaim(\''+c.id+'\')">Approve</button><button class="btn b-bl" style="font-size:10px;padding:4px 7px" onclick="approveWithEdits(\''+c.id+'\')">Approve+AI</button><button class="btn b-rd" style="font-size:10px;padding:4px 7px" onclick="returnForInfo(\''+c.id+'\')">Return</button></div></td></tr>';
   }).join('');
 }
 function approveClaim(id){updateClaimStatus(id,'sub','SUBMITTED TO OEM');showToast(id+' approved  -  original tech text kept');}
@@ -1865,16 +1898,17 @@ function renderIRList(){
   var list=document.getElementById('ir-list');if(!list)return;
   var cnt=document.getElementById('ir-cnt');
   var base=CU&&CU.role==='mgr'?IR_DATA.filter(function(r){var c=getClaim(r.claimId);return c&&c.loc===getMgrLocation(CU.name);}):IR_DATA;
-  var open=base.filter(function(r){return!r.resolved;});
+  var open=base.filter(function(r){return r&&!r.resolved;});
   if(cnt)cnt.textContent=open.length;
   if(!open.length){list.innerHTML='<div style="text-align:center;padding:22px;color:var(--gl)">No open information requests.</div>';return;}
   list.innerHTML=open.map(function(r){var bg=r.priority==='critical'?'#FFF5F5':'#FFF8F0';var bd=r.priority==='critical'?'#f0b8b4':'#FFD0A0';var dotCol=r.priority==='critical'?'var(--rd)':'var(--or)';
-    var filesHtml=r.files.length?'<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:5px">'+r.files.map(function(f){return'<span class="ir-file">'+f+'</span>';}).join('')+'</div>':'';
+    var rFiles=r.files||[];
+    var filesHtml=rFiles.length?'<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:5px">'+rFiles.map(function(f){return'<span class="ir-file">'+f+'</span>';}).join('')+'</div>':'';
     return'<div style="background:'+bg+';border:1.5px solid '+bd+';border-radius:10px;padding:14px 16px;margin-bottom:10px">'+
-      '<div style="display:flex;align-items:center;gap:9px;margin-bottom:8px"><div style="width:27px;height:27px;border-radius:50%;background:'+dotCol+';color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0">!</div><div style="flex:1"><div style="font-size:12px;font-weight:700">'+r.id+'  -  '+r.type+'</div><div style="font-size:10px;color:var(--gt);margin-top:1px">'+r.claimId+' &middot; '+r.oem+' '+r.eq+' &middot; Tech: '+r.tech+' &middot; '+r.date+'</div></div><span style="font-size:9px;padding:2px 8px;border-radius:7px;font-weight:700;background:'+dotCol+';color:#fff;text-transform:uppercase">'+r.priority+'</span></div>'+
-      '<div style="font-size:11px;color:var(--gt);line-height:1.6;background:rgba(0,0,0,.03);padding:8px 10px;border-radius:6px;margin-bottom:9px">'+r.msg+'</div>'+
-      '<div class="fg"><label class="fl2">Record '+r.tech+"'s response</label><textarea style=\"width:100%;min-height:60px;border:1.5px solid var(--gbd);border-radius:6px;padding:6px 9px;font-size:11px;font-family:var(--fn);outline:none;resize:vertical;margin-bottom:7px\" placeholder=\"Type response after speaking with "+r.tech+'..." oninput="IR_DATA.find(function(x){return x.id===\''+r.id+'\';}).response=this.value">'+r.response+'</textarea></div>'+
-      '<div class="fg"><label class="fl2">Attach photos or files</label><div class="ir-attach '+(r.files.length?'up':'')+'" onclick="attachIRFile(\''+r.id+'\')">Click to attach  -  saved to Google Drive: Warranty Claims / '+r.claimId+' / Info Requests /</div>'+filesHtml+'</div>'+
+      '<div style="display:flex;align-items:center;gap:9px;margin-bottom:8px"><div style="width:27px;height:27px;border-radius:50%;background:'+dotCol+';color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0">!</div><div style="flex:1"><div style="font-size:12px;font-weight:700">'+r.id+'  -  '+(r.type||'')+'</div><div style="font-size:10px;color:var(--gt);margin-top:1px">'+r.claimId+' &middot; '+(r.oem||'')+' '+(r.eq||'')+' &middot; Tech: '+(r.tech||'')+' &middot; '+(r.date||'')+'</div></div><span style="font-size:9px;padding:2px 8px;border-radius:7px;font-weight:700;background:'+dotCol+';color:#fff;text-transform:uppercase">'+(r.priority||'')+'</span></div>'+
+      '<div style="font-size:11px;color:var(--gt);line-height:1.6;background:rgba(0,0,0,.03);padding:8px 10px;border-radius:6px;margin-bottom:9px">'+(r.msg||'')+'</div>'+
+      '<div class="fg"><label class="fl2">Record '+(r.tech||'tech')+"'s response</label><textarea style=\"width:100%;min-height:60px;border:1.5px solid var(--gbd);border-radius:6px;padding:6px 9px;font-size:11px;font-family:var(--fn);outline:none;resize:vertical;margin-bottom:7px\" placeholder=\"Type response after speaking with "+(r.tech||'tech')+'..." oninput="IR_DATA.find(function(x){return x.id===\''+r.id+'\';}).response=this.value">'+(r.response||'')+'</textarea></div>'+
+      '<div class="fg"><label class="fl2">Attach photos or files</label><div class="ir-attach '+(rFiles.length?'up':'')+'" onclick="attachIRFile(\''+r.id+'\')">Click to attach  -  saved to Google Drive: Warranty Claims / '+r.claimId+' / Info Requests /</div>'+filesHtml+'</div>'+
       '<div style="display:flex;gap:6px;margin-top:10px"><button class="btn b-gn" style="font-size:11px" onclick="resolveIR(\''+r.id+'\')">Mark Resolved  -  Return to Warranty Admin</button><button class="btn b-gh" style="font-size:11px" onclick="openDP(\''+r.claimId+'\')">View Claim</button></div></div>';
   }).join('');
 }
@@ -1884,14 +1918,85 @@ function resolveIR(irId){var r=IR_DATA.find(function(x){return x.id===irId;});if
 function renderTaskList(){
   if(!CU)return;
   var tc=document.getElementById('task-content');if(!tc)return;
-  var tasks=[];
-  CLAIMS.filter(function(c){return c.s==='adm';}).forEach(function(c){tasks.push({type:'rd',title:'Complete OEM submission  -  '+c.id,sub:c.cust+' &middot; '+c.oem+' &middot; Returned from info request',action:'openDP(\''+c.id+'\')'});});
-  CLAIMS.filter(function(c){return c.s==='sub'&&!c.oemClaimNum;}).forEach(function(c){tasks.push({type:'or',title:'Enter OEM Claim #  -  '+c.id,sub:c.cust+' &middot; '+c.oem+' ('+c.oemCode+')',action:'openOEMPanel(\''+c.id+'\',\''+c.en+'\')'});});
-  CLAIMS.filter(function(c){return c.woOpen&&['pay','sub'].includes(c.s);}).forEach(function(c){tasks.push({type:'bl',title:'Close WO  -  '+c.woId,sub:'WO still open for '+c.en+' &middot; '+c.cust,action:'showToast(\'Mark WO as closed when reconciliation is complete\')'});});
-  CLAIMS.filter(function(c){return c.s==='pay';}).forEach(function(c){tasks.push({type:'gn',title:'Confirm payment  -  '+c.id,sub:c.oem+' ('+c.oemCode+') &middot; $'+c.claimAmt.toFixed(0),action:'openDP(\''+c.id+'\')'});});
-  var tcnt=document.getElementById('task-cnt');if(tcnt)tcnt.textContent=tasks.length;
-  if(!tasks.length){tc.innerHTML='<div style="text-align:center;padding:22px;color:var(--gl)">No open tasks.</div>';return;}
-  tc.innerHTML='<div class="sl2">Open Tasks ('+tasks.length+')</div>'+tasks.map(function(t){return'<div style="background:var(--wh);border:1px solid var(--gbd);border-radius:8px;padding:11px 14px;margin-bottom:8px;display:flex;align-items:flex-start;gap:10px;cursor:pointer" onclick="'+t.action+'"><div style="width:8px;height:8px;border-radius:50%;flex-shrink:0;margin-top:4px;background:var(--'+t.type+')"></div><div style="flex:1"><div style="font-size:12px;font-weight:600">'+t.title+'</div><div style="font-size:10px;color:var(--gt)">'+t.sub+'</div></div><div style="font-size:16px;color:var(--gl)">&#8250;</div></div>';}).join('');
+  if(CU.role!=='admin'){tc.innerHTML='<div style="text-align:center;padding:22px;color:var(--gl)">Task list is for Warranty Admin only.</div>';return;}
+
+  // ── PRIORITY 1: VALIDITY CHECKS ─────────────────────────────────
+  var validityPending=Object.keys(VALIDITY_FLAGS||{}).filter(function(k){return VALIDITY_FLAGS[k].status==='pending';});
+  // ── PRIORITY 2: PENDING APPROVAL (claims you sent for tech approval but came back) ─
+  var returnedFromMgr=CLAIMS.filter(function(c){return c&&c.s==='adm';});
+  // ── PRIORITY 3: READY TO SUBMIT TO OEM (approved, needs OEM portal submission) ─
+  var readyToSubmit=CLAIMS.filter(function(c){return c&&c.s==='sub'&&!c.oemClaimNum;});
+  // ── PRIORITY 4: MISSING INFO (claims awaiting tech response) ─────
+  var awaitingInfo=CLAIMS.filter(function(c){return c&&c.s==='ir';});
+  // ── PRIORITY 5: AWAITING OEM CLAIM # (submitted, needs OEM number entered) ─
+  // (same as readyToSubmit list — OEM portal submission flow includes claim #)
+  // ── PRIORITY 6: STALE CLAIMS (no update 14+ days) ────────────────
+  var staleClaims=CLAIMS.filter(function(c){return c&&['draft','new','ins','appr','sub'].includes(c.s)&&daysSinceUpdate(c)>=14;});
+  // ── PRIORITY 7: DISPOSAL TASKS ───────────────────────────────────
+  var allParts=CLAIMS.filter(function(c){return c&&c.disposeDate;}).concat(typeof ARCHIVE_CLAIMS!=='undefined'?ARCHIVE_CLAIMS.filter(function(c){return c&&c.disposeDate;}):[]);
+  var disposeNow=allParts.filter(function(c){return partStatus(c.disposeDate)==='dispose';});
+
+  var totalTasks=validityPending.length+returnedFromMgr.length+readyToSubmit.length+awaitingInfo.length+staleClaims.length+disposeNow.length;
+  var tcnt=document.getElementById('task-cnt');if(tcnt)tcnt.textContent=totalTasks;
+
+  if(!totalTasks){
+    tc.innerHTML='<div style="text-align:center;padding:32px;color:var(--gl)">'+
+      '<div style="font-size:48px;margin-bottom:8px">&#10003;</div>'+
+      '<div style="font-size:16px;font-weight:600;color:var(--gn);margin-bottom:4px">All caught up!</div>'+
+      '<div style="font-size:11px">No outstanding tasks in your queue.</div>'+
+    '</div>';
+    return;
+  }
+
+  var html='<div style="font-size:11px;color:var(--gt);margin-bottom:14px">Work top to bottom — highest priority first. '+totalTasks+' item'+(totalTasks!==1?'s':'')+' in your queue.</div>';
+
+  function section(num,title,subtitle,items,color,renderItem){
+    if(!items.length)return '';
+    var s='<div style="background:var(--wh);border-radius:9px;border:1px solid var(--gbd);overflow:hidden;margin-bottom:12px">';
+    s+='<div style="background:'+color+';color:#fff;padding:10px 14px;display:flex;align-items:center;gap:10px">';
+    s+='<div style="width:24px;height:24px;border-radius:50%;background:rgba(255,255,255,0.25);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0">'+num+'</div>';
+    s+='<div style="flex:1"><div style="font-size:12px;font-weight:700">'+title+'</div><div style="font-size:10px;opacity:0.85">'+subtitle+'</div></div>';
+    s+='<div style="font-size:18px;font-weight:700">'+items.length+'</div></div>';
+    items.forEach(function(it){s+=renderItem(it);});
+    s+='</div>';
+    return s;
+  }
+
+  // P1: Validity checks
+  html+=section(1,'Warranty Validity Checks','New work orders to validate before letting techs claim them','var(--rd)',validityPending,function(k){
+    var v=VALIDITY_FLAGS[k];
+    return '<div class="ao-row" onclick="nav(\'validity\',document.getElementById(\'ni-validity\'))"><div style="flex:1"><div style="font-size:11px;font-weight:600"><span class="cid">'+k+'</span> &middot; '+(v.cust||'-')+'</div><div style="font-size:10px;color:var(--gt)">'+(v.equipment||v.en||'-')+' &middot; '+(v.oem||'-')+'</div></div><span style="font-size:10px;color:var(--rd);font-weight:700">Validate &rsaquo;</span></div>';
+  });
+
+  // P2: Returned from manager
+  html+=section(2,'Returned from Service Manager','Claims sent back to you for OEM submission','var(--or)',returnedFromMgr,function(c){
+    return '<div class="ao-row" onclick="openDP(\''+c.id+'\')"><div style="flex:1"><div style="font-size:11px;font-weight:600"><span class="cid">'+c.id+'</span> &middot; '+(c.cust||'-')+'</div><div style="font-size:10px;color:var(--gt)">'+(c.en||'-')+' &middot; Tech: '+(c.tech||'-')+' &middot; '+(c.age||'')+'</div></div><span style="font-size:10px;color:var(--or);font-weight:700">Review &rsaquo;</span></div>';
+  });
+
+  // P3: Ready to submit to OEM
+  html+=section(3,'Ready for OEM Portal Submission','Approved claims awaiting OEM claim number entry','var(--bl)',readyToSubmit,function(c){
+    var safeEn=(c.en||'').replace(/'/g,"");
+    return '<div class="ao-row"><div style="flex:1;cursor:pointer" onclick="openDP(\''+c.id+'\')"><div style="font-size:11px;font-weight:600"><span class="cid">'+c.id+'</span> &middot; '+(c.cust||'-')+'</div><div style="font-size:10px;color:var(--gt)">'+(c.oem||'-')+' '+(c.oemCode||'')+' &middot; '+(c.en||'-')+' &middot; Tech: '+(c.tech||'-')+'</div></div><button class="btn b-or" style="font-size:10px" onclick="openOEMPanel(\''+c.id+'\',\''+safeEn+'\')">Submit to OEM</button></div>';
+  });
+
+  // P4: Awaiting tech response
+  html+=section(4,'Awaiting Tech Response','Info requests sent to techs — follow up if no response','var(--am)',awaitingInfo,function(c){
+    var d=daysSinceUpdate(c);
+    return '<div class="ao-row" onclick="openDP(\''+c.id+'\')"><div style="flex:1"><div style="font-size:11px;font-weight:600"><span class="cid">'+c.id+'</span> &middot; '+(c.cust||'-')+'</div><div style="font-size:10px;color:var(--gt)">Tech: '+(c.tech||'-')+' &middot; '+(d>=3?'<span style="color:var(--rd);font-weight:700">'+d+'d no update</span>':d+'d ago')+'</div></div><span style="font-size:10px;color:var(--am);font-weight:700">View &rsaquo;</span></div>';
+  });
+
+  // P5: Stale claims
+  html+=section(5,'Stale Claims — Follow Up Needed','No status update in 14+ days. Add a note or escalate to Service Manager.','#8B5CF6',staleClaims,function(c){
+    var d=daysSinceUpdate(c);
+    return '<div class="ao-row"><div style="flex:1;cursor:pointer" onclick="openDP(\''+c.id+'\')"><div style="font-size:11px;font-weight:600"><span class="cid">'+c.id+'</span> &middot; '+(c.cust||'-')+' &middot; '+(c.sl||'-')+'</div><div style="font-size:10px;color:var(--gt)">Tech: '+(c.tech||'-')+' &middot; <span style="color:var(--rd);font-weight:700">'+d+'d no update</span></div></div><button class="btn b-or" style="font-size:10px" onclick="logStatusUpdate(\''+c.id+'\')">Add Status Note</button></div>';
+  });
+
+  // P6: Disposal tasks
+  html+=section(6,'Part Disposal — Past Retention Window','Parts past 90-day retention can be disposed','var(--gt)',disposeNow,function(c){
+    return '<div class="ao-row" onclick="openDP(\''+(c.id||c.claimId)+'\')"><div style="flex:1"><div style="font-size:11px;font-weight:600"><span class="cid">'+(c.id||c.claimId)+'</span> &middot; '+(c.partRemoved||'Part')+'</div><div style="font-size:10px;color:var(--gt)">Storage: '+(c.partStorage||'Not set')+' &middot; Dispose date: '+(c.disposeDate||'-')+'</div></div><span style="font-size:10px;color:var(--gt);font-weight:700">View &rsaquo;</span></div>';
+  });
+
+  tc.innerHTML=html;
 }
 
 function renderReconDMSQueue(){
@@ -2037,7 +2142,17 @@ function saveCredit(id){
   var cn=cnEl?cnEl.value.trim():'';
   if(!cr||!cn){showToast('Enter OEM credit amount and credit note #');return;}
   var c=getClaim(id);if(!c)return;
-  var oemNumEl=document.getElementById('oem-num-'+id);if(oemNumEl&&oemNumEl.value.trim())c.oemClaimNum=oemNumEl.value.trim();
+  var oemNumEl=document.getElementById('oem-num-'+id);
+  if(oemNumEl&&oemNumEl.value.trim()){
+    var wasEmpty=!c.oemClaimNum;
+    c.oemClaimNum=oemNumEl.value.trim();
+    // If this is the first time the OEM # is being set, trigger file rename
+    if(wasEmpty){
+      apiPost('renameClaimFiles',{claimId:id,oemClaimNum:c.oemClaimNum}).then(function(r){
+        if(r&&r.ok)console.log('Files renamed:',r.renamed);
+      }).catch(function(e){console.warn('Rename error:',e);});
+    }
+  }
   var crNum=parseFloat(cr)||0;
   var crInclHST=crNum*1.13;
   var net=c.claimAmt-crInclHST;
@@ -2284,9 +2399,9 @@ function reassignTech(name){var cur=getTechLocation(name);var newLoc=cur==='HYD0
 function openDP(id){
   var c=getClaim(id);
   document.getElementById('dp-id').textContent=id;
-  document.getElementById('dp-eq').innerHTML=c?(c.en+' &middot; '+c.cust+' &middot; '+c.tech+' &middot; '+c.loc):'';
+  document.getElementById('dp-eq').innerHTML=c?((c.en||'-')+' &middot; '+(c.cust||'-')+' &middot; '+(c.tech||'-')+' &middot; '+(c.loc||'')):'';
   var steps=['WO Created','Claimed','Started','Submitted','OEM Sub.','Approved','Paid'];
-  var stageMap={new:0,ins:1,appr:2,sub:3,ir:3,adm:3,oem:4,app:5,pay:6,cls:6};
+  var stageMap={draft:1,new:0,ins:1,appr:2,sub:3,ir:3,adm:3,oem:4,app:5,pay:6,cls:6};
   var cur=c?Math.max(0,(stageMap[c.s]||0)):0;
   document.getElementById('dp-wf').innerHTML=steps.map(function(s,i){var cls=i<cur?'dn':i===cur?'ac':'';return'<div class="wfst '+cls+'"><div class="wfd">'+(i<cur?'V':(i+1))+'</div><div class="wfl">'+s+'</div></div>';}).join('');
   var aiHtml='';
@@ -2294,10 +2409,23 @@ function openDP(id){
     var sc=c.aiScore;var scCol=sc>=8?'#34D399':sc>=6?'#FCD34D':'#F87171';
     aiHtml='<div class="dp-s"><div class="dp-st">AI Quality Review</div><div style="display:flex;align-items:center;gap:10px;margin-bottom:8px"><div style="font-size:28px;font-weight:700;color:'+scCol+'">'+sc.toFixed(1)+'</div><div style="font-size:10px;color:var(--gl)">/10  -  OEM Submission Readiness</div>'+(c.aiEditsApplied?'<span style="font-size:9px;padding:2px 8px;border-radius:5px;background:var(--bll);color:var(--bl);font-weight:700">AI Edits Applied</span>':'')+'</div></div>';
   }
+  // Resume Draft banner for tech's own drafts
+  var resumeHtml='';
+  if(c&&c.s==='draft'&&CU&&CU.role==='tech'&&c.tech===CU.name){
+    var dD=daysSinceUpdate(c);
+    var stale=dD>=3;
+    resumeHtml='<div class="dp-s" style="background:'+(stale?'#FFFBF0':'#F0F9FF')+';border:1.5px solid '+(stale?'#FFD080':'#93C5FD')+';border-radius:9px;padding:13px 15px">'+
+      '<div style="display:flex;align-items:center;gap:9px;margin-bottom:7px"><div style="font-size:18px">'+(stale?'&#9888;':'&#128221;')+'</div><div style="font-size:13px;font-weight:700;color:'+(stale?'var(--am)':'var(--bl)')+'">Draft in Progress'+(stale?' — '+dD+' days since last update':'')+'</div></div>'+
+      '<div style="font-size:11px;color:var(--gt);margin-bottom:9px">'+(stale?'Time to follow up on this claim. Update or release it back to the WO pool.':'You started this claim but haven\'t finished. Resume where you left off.')+'</div>'+
+      '<div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn b-or" onclick="ncResumeDraft(\''+id+'\')">Resume Draft</button><button class="btn b-rd" style="font-size:11px" onclick="releaseDraft(\''+id+'\')">Release Draft</button></div>'+
+    '</div>';
+  }
+  var locDisp=c&&c.loc?'<span class="loc-badge loc-'+c.loc.toLowerCase()+'">'+c.loc+'</span>':'';
   var body='<div class="dp-s"><div class="dp-st">Claim Details</div><div class="ig2">'+
     '<div class="ii2"><span class="il2">Claim #</span><span class="iv2" style="color:var(--or);font-family:monospace">'+(c?c.id:id)+'</span></div>'+
-    '<div class="ii2"><span class="il2">Status</span><span class="iv2"><span class="pill '+(c?PMAP[c.s]||'p-new':'p-new')+'">'+(c?c.sl:' - ')+'</span></span></div>'+
-    (c?'<div class="ii2"><span class="il2">Customer</span><span class="iv2">'+c.cust+'</span></div><div class="ii2"><span class="il2">Location</span><span class="iv2"><span class="loc-badge loc-'+c.loc.toLowerCase()+'">'+c.loc+'</span> '+getMgrForTech(c.tech)+'</span></div><div class="ii2"><span class="il2">OEM</span><span class="iv2">'+c.oem+'</span></div><div class="ii2"><span class="il2">OEM Code</span><span class="iv2" style="font-family:monospace">'+c.oemCode+'</span></div><div class="ii2"><span class="il2">Equipment</span><span class="iv2">'+c.en+'</span></div><div class="ii2"><span class="il2">Technician</span><span class="iv2">'+c.tech+'</span></div><div class="ii2"><span class="il2">Claim Amount</span><span class="iv2">$'+c.claimAmt.toFixed(2)+'</span></div><div class="ii2"><span class="il2">Age</span><span class="iv2"><span class="'+ageClass(c.age)+'">'+ageLabel(c.age)+'</span></span></div>'+(c.oemClaimNum?'<div class="ii2"><span class="il2">OEM Claim #</span><span class="iv2" style="font-family:monospace;color:var(--gn)">'+c.oemClaimNum+'</span></div>':''):'')+'</div></div>';
+    '<div class="ii2"><span class="il2">Status</span><span class="iv2"><span class="pill '+(c?PMAP[c.s]||'p-new':'p-new')+'">'+(c?(c.sl||'-'):' - ')+'</span></span></div>'+
+    (c?'<div class="ii2"><span class="il2">Customer</span><span class="iv2">'+(c.cust||'-')+'</span></div><div class="ii2"><span class="il2">Location</span><span class="iv2">'+locDisp+' '+getMgrForTech(c.tech||'')+'</span></div><div class="ii2"><span class="il2">OEM</span><span class="iv2">'+(c.oem||'-')+'</span></div><div class="ii2"><span class="il2">OEM Code</span><span class="iv2" style="font-family:monospace">'+(c.oemCode||'')+'</span></div><div class="ii2"><span class="il2">Equipment</span><span class="iv2">'+(c.en||'-')+'</span></div><div class="ii2"><span class="il2">Technician</span><span class="iv2">'+(c.tech||'-')+'</span></div><div class="ii2"><span class="il2">Claim Amount</span><span class="iv2">$'+((c.claimAmt||0).toFixed(2))+'</span></div><div class="ii2"><span class="il2">Age</span><span class="iv2"><span class="'+ageClass(c.age||'0d')+'">'+ageLabel(c.age||'0d')+'</span></span></div>'+(c.oemClaimNum?'<div class="ii2"><span class="il2">OEM Claim #</span><span class="iv2" style="font-family:monospace;color:var(--gn)">'+c.oemClaimNum+'</span></div>':'')+(c.serviceType&&c.serviceType!=='In-Shop'?'<div class="ii2"><span class="il2">Service Type</span><span class="iv2">'+c.serviceType+'</span></div><div class="ii2"><span class="il2">Service Address</span><span class="iv2">'+(c.serviceAddress||'<span style="color:var(--am)">Needs SM input</span>')+'</span></div>':(c.serviceType?'<div class="ii2"><span class="il2">Service Type</span><span class="iv2">'+c.serviceType+'</span></div>':'')):'')+'</div></div>';
+  body=resumeHtml+body;
   body+=aiHtml;
   if(c&&(CU&&CU.role==='mgr')&&c.aiEdits&&c.aiEdits.complaint){
     body+='<div class="dp-s"><div class="dp-st">AI Suggested Edits</div>'+
@@ -2336,7 +2464,7 @@ function openDP(id){
   }
     body+='<div class="dp-s"><div class="dp-st">Three Cs</div><div style="margin-bottom:7px;padding:7px 9px;background:var(--orl);border-radius:6px;border-left:3px solid var(--or)"><div style="font-size:9px;font-weight:700;color:var(--or);text-transform:uppercase;margin-bottom:2px">Complaint</div><div style="font-size:11px;color:var(--gt)">'+(c&&c.es?c.es:'No complaint recorded.')+'</div></div><div style="margin-bottom:7px;padding:7px 9px;background:var(--bll);border-radius:6px;border-left:3px solid var(--bl)"><div style="font-size:9px;font-weight:700;color:var(--bl);text-transform:uppercase;margin-bottom:2px">Cause</div><div style="font-size:11px;color:var(--gt)">Engineering confirmed design issue with belt kit pulley alignment.</div></div><div style="padding:7px 9px;background:var(--gnl);border-radius:6px;border-left:3px solid var(--gn)"><div style="font-size:9px;font-weight:700;color:var(--gn);text-transform:uppercase;margin-bottom:2px">Correction</div><div style="font-size:11px;color:var(--gt)">Installed OEM factory belt kit. Replaced alternator pulley. Confirmed correct alignment.</div></div></div>';
   document.getElementById('dp-body').innerHTML=body;
-  var acts='<button class="btn b-bl" onclick="openNotesModal(\''+id+'\')">Notes</button>';
+  var acts='<button class="btn b-bl" onclick="openNotesModal(\''+id+'\')">Notes</button><button class="btn b-gh" style="font-size:11px" onclick="quickAddNote(\''+id+'\')">+ Quick Note</button>';
   if(c){
     // Status update + Contact log buttons for active claims
     if(['draft','new','ins','appr','sub'].includes(c.s)&&CU&&['mgr','mgmt','admin','sa'].includes(CU.role)){
@@ -2391,7 +2519,19 @@ function openOEMPanel(id,eq){
   }
   document.getElementById('oem-modal').classList.add('open');
 }
-function submitOEMClaim(){var cn=document.getElementById('oem-cn').value.trim();if(!cn){showToast('OEM Claim # required');return;}updateClaimStatus(window._oemClaimId,'pay','PENDING PAYMENT',{oemClaimNum:cn});closeModal('oem-modal');showToast(window._oemClaimId+'  -  OEM # saved, moved to Pending Payment');}
+function submitOEMClaim(){
+  var cn=document.getElementById('oem-cn').value.trim();
+  if(!cn){showToast('OEM Claim # required');return;}
+  var claimId=window._oemClaimId;
+  updateClaimStatus(claimId,'pay','PENDING PAYMENT',{oemClaimNum:cn});
+  closeModal('oem-modal');
+  // Trigger Drive file rename in background
+  apiPost('renameClaimFiles',{claimId:claimId,oemClaimNum:cn}).then(function(r){
+    if(r&&r.ok){console.log('Files renamed:',r.renamed,'skipped:',r.skipped);}
+    else if(r&&r.error){console.warn('Rename failed:',r.error);}
+  }).catch(function(e){console.warn('Rename request error:',e);});
+  showToast(claimId+' — OEM # saved, files renamed in Drive');
+}
 function openRejPanel(id,eq){document.getElementById('rej-modal-s').textContent=id+'  -  '+eq;['rej-reason','rej-new-cn','rej-notes'].forEach(function(i){var el=document.getElementById(i);if(el)el.value='';});document.getElementById('rej-modal').classList.add('open');}
 function handleRejection(){var act=document.getElementById('rej-action').value;if(!act){showToast('Select an action');return;}closeModal('rej-modal');showToast('Rejection handled: '+act);}
 function openNotesModal(id){document.getElementById('notes-modal-s').textContent='Notes for '+id;document.getElementById('existing-notes').innerHTML='<div style="background:var(--gbg);padding:8px 10px;border-radius:6px;font-size:11px;margin-bottom:6px"><div style="font-size:9px;color:var(--gl);margin-bottom:2px">Service Manager  -  Apr 22</div>Spoke with tech about diagnostic file.</div>';document.getElementById('new-note').value='';document.getElementById('notes-modal').classList.add('open');}
@@ -2447,6 +2587,8 @@ function renderDashboard(){
     var allMyParts=myC.filter(function(c){return c.disposeDate;}).concat(myArchive.filter(function(c){return c.disposeDate;}));
     var disposeNow=allMyParts.filter(function(c){return partStatus(c.disposeDate)==='dispose';});
     var disposeSoon=allMyParts.filter(function(c){return partStatus(c.disposeDate)==='warn';});
+    // Service address missing — tech flagged for SM to fill in
+    var svcAddrMissing=myC.filter(function(c){return c&&c.serviceType&&c.serviceType!=='In-Shop'&&!c.serviceAddress;});
     var myAIAvg=(myC.reduce(function(a,c){return a+(c.aiScore||0);},0)/(myC.length||1)).toFixed(1);
     var alertCount=pendingAppr.length+openIRs.length+(aged.length>0?1:0)+flagged7d.length+staleContact.length;
     var alertEl=document.getElementById('dash-alert-cnt');
@@ -2515,6 +2657,21 @@ function renderDashboard(){
       staleContactHtml+='</div>';
     }
 
+    // Service address missing — tech needs SM to fill in
+    var svcAddrHtml='';
+    if(svcAddrMissing.length){
+      svcAddrHtml='<div class="sl2" style="color:var(--am)">&#127968; Service Addresses Needed</div>';
+      svcAddrHtml+='<div style="background:#FFFBF0;border:1.5px solid #FFD0A0;border-radius:9px;padding:10px;margin-bottom:14px">';
+      svcAddrHtml+='<div style="font-size:11px;color:var(--gt);margin-bottom:7px">Tech flagged these claims — service address missing. Add it so OEM submission can include the correct location.</div>';
+      svcAddrMissing.forEach(function(c){
+        svcAddrHtml+='<div style="background:#fff;border:1px solid var(--gbd);border-radius:6px;padding:8px 10px;margin-bottom:5px;display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">';
+        svcAddrHtml+='<div style="flex:1;min-width:200px"><span class="cid">'+c.id+'</span> &middot; <strong>'+(c.cust||'-')+'</strong> &middot; '+c.serviceType+' &middot; Tech: '+(c.tech||'-')+'</div>';
+        svcAddrHtml+='<button class="btn b-or" style="font-size:10px" onclick="promptServiceAddress(\''+c.id+'\')">Add Address</button>';
+        svcAddrHtml+='</div>';
+      });
+      svcAddrHtml+='</div>';
+    }
+
     // Disposal date reminders
     var disposalHtml='';
     if(disposeNow.length||disposeSoon.length){
@@ -2580,6 +2737,7 @@ function renderDashboard(){
       '</div>'+
       flagged7dHtml+
       staleContactHtml+
+      svcAddrHtml+
       disposalHtml+
       '<div class="sl2">Tech Workload — Active Jobs in Progress</div>'+
       '<div style="margin-bottom:14px">'+techWorkloadHtml+'</div>'+
@@ -2778,7 +2936,133 @@ function ncRender(){
     if(w.desc){var q1=document.getElementById('nc-q1');if(q1){q1.value=w.desc;ncNarr();}}
     showToast('Pre-filled from WO: '+w.id);window._prefillWO=null;
   }
+  // Restore previously-saved Step 0 fields (service type/address etc)
+  if(ncCur===0){
+    Object.keys(ncData).forEach(function(k){
+      if(k.indexOf('nc-')===0){var el=document.getElementById(k);if(el&&!el.value)el.value=ncData[k];}
+    });
+    // Show svc address field if service type requires it
+    var stEl=document.getElementById('nc-svctype');
+    if(stEl&&stEl.value&&stEl.value!=='In-Shop'){
+      var fg=document.getElementById('nc-svcaddr-fg');if(fg)fg.style.display='block';
+    }
+  }
   c.scrollTop=0;
+}
+function ncSvcTypeChange(){
+  var stEl=document.getElementById('nc-svctype');
+  var fg=document.getElementById('nc-svcaddr-fg');
+  if(!stEl||!fg)return;
+  fg.style.display=(stEl.value&&stEl.value!=='In-Shop')?'block':'none';
+}
+function ncSaveDraft(){
+  // Capture all visible fields
+  var inputs=document.querySelectorAll('#nc-c input, #nc-c select, #nc-c textarea');
+  inputs.forEach(function(el){if(el.id&&el.id.indexOf('nc-')===0)ncData[el.id]=el.value;});
+  ncData['ncCov']=ncCov;
+  ncData['ncStep']=ncCur;
+  ncData['ncSavedAt']=new Date().toISOString();
+  // Save as draft claim if we have a WO #
+  var woId=ncData['nc-wo'];
+  if(!woId){showToast('Enter a Work Order # first');return;}
+  var existing=getClaim(woId);
+  var draftData={
+    id:woId,cust:ncData['nc-cu']||'',phone:'',
+    en:(ncData['nc-mod']||''),es:'',
+    make:ncData['nc-mod']||'',model:ncData['nc-mod']||'',
+    oem:ncData['nc-oem']||'',oemCode:ncData['nc-oemc']||'',
+    s:'draft',sl:'IN PROGRESS',p:'lo',pl:'LOW',
+    age:'0d',tech:ncData['nc-tn']||(CU?CU.name:''),
+    loc:(woId&&woId.indexOf('WM')===0)?'HYD020':'HYD010',
+    info:false,claimAmt:0,oemClaimNum:'',
+    machineHours:ncData['nc-hr']||'',
+    dateOfFailure:ncData['nc-df']||'',
+    dateOfRepair:ncData['nc-dr']||'',
+    serviceType:ncData['nc-svctype']||'',
+    serviceAddress:ncData['nc-svcaddr']||'',
+    serviceAddressMissing:(ncData['nc-svctype']&&ncData['nc-svctype']!=='In-Shop'&&!ncData['nc-svcaddr']),
+    complaint:ncData['nc-q1']||'',cause:ncData['nc-q3']||'',correction:ncData['nc-q6']||'',
+    partRemoved:ncData['nc-part-date']||'',partStorage:ncData['nc-part-storage']||'',
+    disposeDate:'',
+    draftStep:ncCur,draftData:JSON.stringify(ncData),
+    lastUpdated:new Date().toISOString(),
+    lastStatusUpdate:new Date().toISOString()
+  };
+  if(!existing){
+    draftData.dateCreated=new Date().toISOString();
+    CLAIMS.unshift(draftData);
+  } else {
+    Object.assign(existing,draftData);
+  }
+  apiPost('saveClaim',{claim:draftData}).then(function(){
+    showToast('Draft saved — come back anytime to finish');
+    refreshAll();
+  });
+}
+function ncResumeDraft(claimId){
+  var c=getClaim(claimId);if(!c||c.s!=='draft')return;
+  if(c.draftData){
+    try{ncData=JSON.parse(c.draftData);}catch(e){ncData={};}
+  }
+  ncCur=c.draftStep||0;
+  ncCov=ncData['ncCov']||'';
+  window._manualMode=false;
+  nav('claim',document.getElementById('ni-nc'));
+  setTimeout(function(){
+    jumpToFirstIncomplete();
+  },300);
+}
+function jumpToFirstIncomplete(){
+  // Find first step with incomplete required fields starting from current step
+  for(var s=ncCur;s<NC.length-1;s++){
+    var errs=ncValidate(s);
+    if(errs.length){
+      if(s!==ncCur){ncCur=s;ncRender();setTimeout(jumpToFirstIncomplete,200);return;}
+      // We're on the right step — find the first matching field
+      showStepErrors(s,errs);
+      // Try to scroll to and focus the first incomplete field
+      var fieldMap={'Work Order #':'nc-wo','Technician':'nc-tn','Customer Name & Phone':'nc-cu','OEM':'nc-oem','Make / Model':'nc-mod','Date of Failure':'nc-df','Date of Repair':'nc-dr','Machine Hours':'nc-hr','Service Type':'nc-svctype','Q1 - Operator complaint':'nc-q1','Q3 - Root cause':'nc-q3','Q4 - Diagnostics':'nc-q4','Q6 - What was repaired':'nc-q6','Q7 - Repair procedure':'nc-q7','Date part removed from machine':'nc-part-date','Part storage location':'nc-part-storage'};
+      var firstId=fieldMap[errs[0]];
+      if(firstId){
+        var el=document.getElementById(firstId);
+        if(el){el.scrollIntoView({behavior:'smooth',block:'center'});setTimeout(function(){el.focus();el.style.boxShadow='0 0 0 3px rgba(232,98,10,0.3)';setTimeout(function(){el.style.boxShadow='';},2000);},400);}
+      }
+      showToast('Resume: complete '+errs[0]);
+      return;
+    }
+  }
+  showToast('All fields complete — review and submit');
+}
+function releaseDraft(claimId){
+  if(!confirm('Release this draft? The WO will return to the pool for other techs to claim.'))return;
+  var idx=CLAIMS.findIndex(function(c){return c.id===claimId;});
+  if(idx<0)return;
+  var c=CLAIMS[idx];
+  CLAIMS.splice(idx,1);
+  apiPost('deleteClaim',{id:claimId});
+  showToast(claimId+' released back to WO pool');
+  closeDP();refreshAll();
+}
+function quickAddNote(claimId){
+  var note=prompt('Quick note for '+claimId+':');
+  if(!note||!note.trim())return;
+  apiPost('saveNote',{claimId:claimId,author:CU?CU.name:'',role:CU?CU.role:'',text:note.trim(),type:'note'});
+  showToast('Note added to '+claimId);
+  // Refresh detail panel if open
+  var dpEl=document.getElementById('dp-id');
+  if(dpEl&&dpEl.textContent===claimId)openDP(claimId);
+}
+function promptServiceAddress(claimId){
+  var c=getClaim(claimId);if(!c)return;
+  var addr=prompt('Enter service address for '+claimId+' ('+(c.cust||'')+'):',c.serviceAddress||'');
+  if(!addr||!addr.trim())return;
+  c.serviceAddress=addr.trim();
+  c.serviceAddressFilledBy=CU?CU.name:'';
+  c.serviceAddressFilledDate=new Date().toISOString();
+  apiPost('saveClaim',{claim:c});
+  apiPost('saveNote',{claimId:claimId,author:CU?CU.name:'',role:CU?CU.role:'',text:'Service address added: '+addr.trim(),type:'svc-addr'});
+  showToast('Service address saved for '+claimId);
+  refreshAll();
 }
 function tOpts(){return TECHS.map(function(t){var loc=getTechLocation(t);return'<option value="'+t+'"'+(CU&&CU.role==='tech'&&CU.name===t?' selected':'')+'>'+t+(loc?' ['+loc+']':'')+'</option>';}).join('');}
 function oemOpts(){return OEMS.map(function(o){return'<option>'+o+'</option>';}).join('');}
@@ -2803,7 +3087,7 @@ function selectWODrop(id){
 function ncS0(){
   var isM=window._manualMode||false;
   var woSec=isM?'':'<div class="fg"><label class="fl2">Select Work Order</label>'+buildWODropdown()+'</div>';
-  return'<div style="margin-bottom:10px"><div class="entry-toggle"><button class="et-opt'+(isM?'':' on')+'" onclick="window._manualMode=false;ncRender()">Select from WO List</button><button class="et-opt'+(isM?' on':'')+'" onclick="window._manualMode=true;ncRender()">Manual Entry</button></div></div>'+(isM?'<div class="an warn">Manual entry  -  all fields must be entered manually.</div>':'<div class="an ss">Select a work order from the list below to auto-fill the form.</div>')+woSec+'<div class="fc"><div class="fct"><div class="fn2">1</div>Claim Information</div><div class="step-err" id="step-err-0"></div><div class="fr3"><div class="fg"><label class="fl2">Work Order # *</label><input class="fi" id="nc-wo" placeholder="e.g. WS19383"></div><div class="fg"><label class="fl2">Technician *</label><select class="fsel" id="nc-tn"><option value="">Select</option>'+tOpts()+'</select></div><div class="fg"><label class="fl2">Customer Name &amp; Phone *</label><input class="fi" id="nc-cu" placeholder="Name and phone number"></div><div class="fg"><label class="fl2">OEM *</label><select class="fsel" id="nc-oem"><option value="">Select</option>'+oemOpts()+'</select></div><div class="fg"><label class="fl2">OEM Vendor Code</label><input class="fi" id="nc-oemc" placeholder="e.g. 080055" style="font-family:monospace"></div><div class="fg"><label class="fl2">Make / Model *</label><input class="fi" id="nc-mod" placeholder="e.g. LX2610HSDCC" style="font-family:monospace"></div><div class="fg"><label class="fl2">Date of Failure *</label><input class="fi" type="date" id="nc-df"></div><div class="fg"><label class="fl2">Date of Repair *</label><input class="fi" type="date" id="nc-dr"></div><div class="fg"><label class="fl2">Machine Hours *</label><input class="fi" type="number" id="nc-hr" placeholder="e.g. 85.00"></div></div><div class="fg"><label class="fl2">Coverage Type *</label><div class="cgc"><div class="copt'+(ncCov==='Basic'?' sel':'')+'" onclick="ncCov=\'Basic\';document.querySelectorAll(\'.copt\').forEach(function(o){o.classList.remove(\'sel\');});this.classList.add(\'sel\')"><div class="copt-ic">&#128295;</div><div class="copt-n">Basic</div></div><div class="copt'+(ncCov==='Emissions'?' sel':'')+'" onclick="ncCov=\'Emissions\';document.querySelectorAll(\'.copt\').forEach(function(o){o.classList.remove(\'sel\');});this.classList.add(\'sel\')"><div class="copt-ic">&#128168;</div><div class="copt-n">Emissions</div></div><div class="copt'+(ncCov==='Powertrain'?' sel':'')+'" onclick="ncCov=\'Powertrain\';document.querySelectorAll(\'.copt\').forEach(function(o){o.classList.remove(\'sel\');});this.classList.add(\'sel\')"><div class="copt-ic">&#9881;</div><div class="copt-n">Powertrain</div></div><div class="copt'+(ncCov==='Other'?' sel':'')+'" onclick="ncCov=\'Other\';document.querySelectorAll(\'.copt\').forEach(function(o){o.classList.remove(\'sel\');});this.classList.add(\'sel\')"><div class="copt-ic">&#128203;</div><div class="copt-n">Other</div></div></div></div></div>';
+  return'<div style="margin-bottom:10px"><div class="entry-toggle"><button class="et-opt'+(isM?'':' on')+'" onclick="window._manualMode=false;ncRender()">Select from WO List</button><button class="et-opt'+(isM?' on':'')+'" onclick="window._manualMode=true;ncRender()">Manual Entry</button></div></div>'+(isM?'<div class="an warn">Manual entry  -  all fields must be entered manually.</div>':'<div class="an ss">Select a work order from the list below to auto-fill the form.</div>')+woSec+'<div class="fc"><div class="fct"><div class="fn2">1</div>Claim Information</div><div class="step-err" id="step-err-0"></div><div class="fr3"><div class="fg"><label class="fl2">Work Order # *</label><input class="fi" id="nc-wo" placeholder="e.g. WS19383"></div><div class="fg"><label class="fl2">Technician *</label><select class="fsel" id="nc-tn"><option value="">Select</option>'+tOpts()+'</select></div><div class="fg"><label class="fl2">Customer Name &amp; Phone *</label><input class="fi" id="nc-cu" placeholder="Name and phone number"></div><div class="fg"><label class="fl2">OEM *</label><select class="fsel" id="nc-oem"><option value="">Select</option>'+oemOpts()+'</select></div><div class="fg"><label class="fl2">OEM Vendor Code</label><input class="fi" id="nc-oemc" placeholder="e.g. 080055" style="font-family:monospace"></div><div class="fg"><label class="fl2">Make / Model *</label><input class="fi" id="nc-mod" placeholder="e.g. LX2610HSDCC" style="font-family:monospace"></div><div class="fg"><label class="fl2">Date of Failure *</label><input class="fi" type="date" id="nc-df"></div><div class="fg"><label class="fl2">Date of Repair *</label><input class="fi" type="date" id="nc-dr"></div><div class="fg"><label class="fl2">Machine Hours *</label><input class="fi" type="number" id="nc-hr" placeholder="e.g. 85.00"></div></div><div class="fr3"><div class="fg"><label class="fl2">Service Type *</label><select class="fsel" id="nc-svctype" onchange="ncSvcTypeChange()"><option value="">Select</option><option value="In-Shop">In-Shop</option><option value="Field Service">Field Service Call</option><option value="Pickup & Delivery">Pickup &amp; Delivery</option></select></div><div class="fg" id="nc-svcaddr-fg" style="display:none;grid-column:span 2"><label class="fl2">Service Address</label><input class="fi" id="nc-svcaddr" placeholder="Address where service was performed"></div></div></div>';
 }
 function ncS1(){
   var names=['Hour Meter','Serial Number Plate','Complete Machine','Failed Part Close-Up','Failed Part Far Away'];
@@ -2912,7 +3196,8 @@ function ncS4(){
         '<div class="swr"><span class="swl">Date of Failure</span><span class="swv">'+g('nc-df')+'</span></div>'+
         '<div class="swr"><span class="swl">Date of Repair</span><span class="swv">'+g('nc-dr')+'</span></div>'+
         '<div class="swr"><span class="swl">Machine Hours</span><span class="swv">'+g('nc-hr')+'</span></div>'+
-        '<div class="swr"><span class="swl">Coverage</span><span class="swv">'+cov+'</span></div>'+
+        '<div class="swr"><span class="swl">Service Type</span><span class="swv">'+g('nc-svctype')+'</span></div>'+
+        (g('nc-svctype')&&g('nc-svctype')!=='In-Shop'?'<div class="swr"><span class="swl">Service Address</span><span class="swv">'+(g('nc-svcaddr')||'<span style="color:var(--am);font-style:italic">Needs SM input</span>')+'</span></div>':'')+
         '<div class="swr"><span class="swl">Photos</span><span class="swv">'+ncPh.filter(function(p){return p;}).length+'/5 required, '+ncMed+' additional</span></div>'+
         (ncData['nc-q1']?'<div class="swr"><span class="swl">Complaint</span><span class="swv" style="font-size:10px;line-height:1.5">'+ncData['nc-q1'].substring(0,80)+(ncData['nc-q1'].length>80?'...':'')+'</span></div>':'')+
         (ncData['nc-part-date']?'<div class="swr"><span class="swl">Part Removed</span><span class="swv">'+ncData['nc-part-date']+'</span></div>':'')+
@@ -2948,7 +3233,7 @@ function ncValidate(s){
     return ncData[id]||'';
   };
   var cov=ncCov||ncData['ncCov']||'';
-  if(s===0){if(!g('nc-wo'))e.push('Work Order #');if(!g('nc-tn'))e.push('Technician');if(!g('nc-cu'))e.push('Customer Name & Phone');if(!g('nc-oem'))e.push('OEM');if(!g('nc-mod'))e.push('Make / Model');if(!g('nc-df'))e.push('Date of Failure');if(!g('nc-dr'))e.push('Date of Repair');if(!g('nc-hr'))e.push('Machine Hours');if(!cov)e.push('Coverage Type');}
+  if(s===0){if(!g('nc-wo'))e.push('Work Order #');if(!g('nc-tn'))e.push('Technician');if(!g('nc-cu'))e.push('Customer Name & Phone');if(!g('nc-oem'))e.push('OEM');if(!g('nc-mod'))e.push('Make / Model');if(!g('nc-df'))e.push('Date of Failure');if(!g('nc-dr'))e.push('Date of Repair');if(!g('nc-hr'))e.push('Machine Hours');if(!g('nc-svctype'))e.push('Service Type');if(g('nc-svctype')&&g('nc-svctype')!=='In-Shop'&&!g('nc-svcaddr')&&!ncData['nc-svcaddr'])e.push('Service Address (or flag for Service Manager)');}
   if(s===1){var miss=ncPh.filter(function(p){return!p;}).length;if(miss>0)e.push('Missing '+miss+' of 5 required photos');}
   if(s===2){if(!g('nc-q1'))e.push('Q1 - Operator complaint');if(!g('nc-q3'))e.push('Q3 - Root cause');if(!g('nc-q4'))e.push('Q4 - Diagnostics');if(!g('nc-q6'))e.push('Q6 - What was repaired');if(!g('nc-q7'))e.push('Q7 - Repair procedure');}
   if(s===3){if(!g('nc-part-date'))e.push('Date part removed from machine');if(!g('nc-part-storage'))e.push('Part storage location');}
@@ -3653,6 +3938,7 @@ function renderAdminOverview(){
       else if(daysSinceSubmit>window*0.75){status='AT RISK';statusColor='var(--am)';}
       else{status='ON TRACK';statusColor='var(--gn)';}
       var workToSubmitFlag=workToSubmit!==null&&workToSubmit>14?'<span style="background:var(--rdl);color:var(--rd);padding:2px 6px;border-radius:4px;font-size:9px;font-weight:700;margin-left:5px">SLOW SUBMIT: '+workToSubmit+'d</span>':'';
+      var amtSpan=noFinancials()?'':' &middot; <span style="color:var(--bl)">$'+((c.claimAmt||0).toFixed(0))+'</span>';
       return'<div class="ao-row" onclick="openDP(&quot;'+c.id+'&quot;)">'+
         '<div style="flex:1">'+
           '<div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-bottom:3px">'+
@@ -3661,7 +3947,7 @@ function renderAdminOverview(){
             '<span style="font-family:monospace;font-size:10px;color:var(--gl)">'+c.oemClaimNum+'</span>'+
             workToSubmitFlag+
           '</div>'+
-          '<div style="font-size:11px;font-weight:600">'+(c.cust||'-')+' &middot; '+(c.en||'-')+' &middot; <span style="color:var(--bl)">$'+((c.claimAmt||0).toFixed(0))+'</span></div>'+
+          '<div style="font-size:11px;font-weight:600">'+(c.cust||'-')+' &middot; '+(c.en||'-')+amtSpan+'</div>'+
           '<div style="font-size:10px;color:var(--gt);margin-top:2px">'+c.oem+' &middot; Submitted '+daysSinceSubmit+'d ago &middot; Expected within '+window+'d</div>'+
           '<div style="height:4px;background:#eee;border-radius:2px;margin-top:5px;overflow:hidden"><div style="height:100%;background:'+statusColor+';width:'+pct+'%"></div></div>'+
         '</div>'+
@@ -3677,7 +3963,8 @@ function renderAdminOverview(){
       }
     });
     if(wToSCount)avgWorkToSubmit=(avgWorkToSubmit/wToSCount).toFixed(1);
-    paymentTrackingHtml+='<div style="padding:8px 16px;background:#F8F8F7;font-size:11px;color:var(--gt);display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px"><span>Total awaiting: <strong>$'+totalValue.toLocaleString()+'</strong></span><span>Avg work→submit: <strong>'+avgWorkToSubmit+'d</strong></span></div>';
+    var totalSpan=noFinancials()?'':'<span>Total awaiting: <strong>$'+totalValue.toLocaleString()+'</strong></span>';
+    paymentTrackingHtml+='<div style="padding:8px 16px;background:#F8F8F7;font-size:11px;color:var(--gt);display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px">'+totalSpan+'<span>Avg work→submit: <strong>'+avgWorkToSubmit+'d</strong></span></div>';
   } else {
     paymentTrackingHtml+=emptyRow("No claims currently awaiting OEM payment.");
   }
@@ -3703,7 +3990,7 @@ function renderAdminOverview(){
             partStatusHtml(c.disposeDate)+
           '</div>'+
           '<div style="font-size:11px;font-weight:600">'+c.cust+' &middot; '+c.en+'</div>'+
-          '<div style="font-size:10px;color:var(--gt)">'+(c.oem||'')+' &middot; Recovered: <strong style="color:var(--gn)">$'+((c.recovered||0).toLocaleString())+'</strong> &middot; '+(c.closedDate||'')+'</div>'+
+          '<div style="font-size:10px;color:var(--gt)">'+(c.oem||'')+(noFinancials()?'':' &middot; Recovered: <strong style="color:var(--gn)">$'+((c.recovered||0).toLocaleString())+'</strong>')+' &middot; '+(c.closedDate||'')+'</div>'+
         '</div>'+
         '<span style="font-size:9px;color:var(--gl);flex-shrink:0">'+c.oemClaimNum+'</span>'+
       '</div>';
@@ -3908,9 +4195,139 @@ function sumR(rows,isClaims){
   return s;
 }
 
+function renderTimeAnalytics(el,isMgr,myLoc){
+  var base=isMgr?CLAIMS.filter(function(c){return c&&c.loc===myLoc;}):CLAIMS;
+  var archBase=typeof ARCHIVE_CLAIMS!=='undefined'?(isMgr?ARCHIVE_CLAIMS.filter(function(c){return c.loc===myLoc;}):ARCHIVE_CLAIMS):[];
+  var all=base.concat(archBase);
+
+  var html='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">';
+  html+='<div style="font-size:16px;font-weight:700">Process Time Analytics'+(isMgr?' — '+myLoc:'')+'</div>';
+  html+='<div style="font-size:10px;color:var(--gl)">Time KPIs only · '+new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'})+'</div></div>';
+
+  // ── KPI CARDS — TIME-BASED ONLY ────────────────────────────────
+  var statusBreakdown={draft:0,new:0,ins:0,appr:0,sub:0,pay:0,oem:0,cls:0};
+  base.forEach(function(c){if(c&&c.s&&statusBreakdown.hasOwnProperty(c.s))statusBreakdown[c.s]++;});
+
+  var subLags=[];
+  all.forEach(function(c){
+    if(c&&c.workCompleted&&c.submittedAt){
+      var d=Math.floor((new Date(c.submittedAt).getTime()-new Date(c.workCompleted).getTime())/86400000);
+      if(d>=0)subLags.push(d);
+    }
+  });
+  var avgSubLag=subLags.length?Math.round(subLags.reduce(function(a,b){return a+b;},0)/subLags.length):0;
+  var slowSubs=subLags.filter(function(d){return d>14;}).length;
+
+  var payLags=[];
+  archBase.forEach(function(c){
+    if(c&&c.submittedAt&&c.closedDate){
+      var d=Math.floor((new Date(c.closedDate).getTime()-new Date(c.submittedAt).getTime())/86400000);
+      if(d>=0)payLags.push(d);
+    }
+  });
+  var avgPayLag=payLags.length?Math.round(payLags.reduce(function(a,b){return a+b;},0)/payLags.length):0;
+
+  var staleClaims=base.filter(function(c){return c&&['draft','new','ins','appr'].includes(c.s)&&daysSinceUpdate(c)>=7;});
+
+  html+='<div class="cg cg4" style="margin-bottom:14px">';
+  html+='<div class="sc '+(avgSubLag>14?'rd':avgSubLag>7?'am':'gn')+'"><div class="sc-l">Avg Work → Submit</div><div class="sc-v '+(avgSubLag>14?'rd':avgSubLag>7?'am':'gn')+'">'+avgSubLag+'d</div><div class="sc-s">Target: under 14 days</div></div>';
+  html+='<div class="sc '+(slowSubs>0?'rd':'gn')+'"><div class="sc-l">Slow Submits</div><div class="sc-v '+(slowSubs>0?'rd':'gn')+'">'+slowSubs+'</div><div class="sc-s">&gt; 14 days lag</div></div>';
+  html+='<div class="sc bl"><div class="sc-l">Avg Submit → Paid</div><div class="sc-v bl">'+avgPayLag+'d</div><div class="sc-s">OEM credit time</div></div>';
+  html+='<div class="sc '+(staleClaims.length>0?'rd':'gn')+'"><div class="sc-l">Stale Claims</div><div class="sc-v '+(staleClaims.length>0?'rd':'gn')+'">'+staleClaims.length+'</div><div class="sc-s">No update 7+ days</div></div>';
+  html+='</div>';
+
+  // ── STATUS BREAKDOWN (counts only, no $) ───────────────────────
+  html+='<div class="sl2">Active Claims by Status</div>';
+  html+='<div style="background:var(--wh);border-radius:9px;border:1px solid var(--gbd);padding:14px;margin-bottom:14px;display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px">';
+  var labels={draft:'In Progress',new:'New',ins:'Inspection',appr:'Pending Approval',sub:'Submitted',pay:'Pending Payment',oem:'OEM Portal',cls:'Closed'};
+  Object.keys(statusBreakdown).forEach(function(k){
+    if(!statusBreakdown[k])return;
+    html+='<div style="text-align:center;padding:8px 6px;background:#F8F8F7;border-radius:6px"><div style="font-size:22px;font-weight:700;color:var(--or)">'+statusBreakdown[k]+'</div><div style="font-size:10px;color:var(--gt);font-weight:600">'+labels[k]+'</div></div>';
+  });
+  html+='</div>';
+
+  // ── AGING BY STATUS ─────────────────────────────────────────────
+  var bucket7=base.filter(function(c){return c&&['draft','new','ins','appr'].includes(c.s)&&daysSinceUpdate(c)>=7&&daysSinceUpdate(c)<14;});
+  var bucket14=base.filter(function(c){return c&&['draft','new','ins','appr'].includes(c.s)&&daysSinceUpdate(c)>=14&&daysSinceUpdate(c)<20;});
+  var bucket20=base.filter(function(c){return c&&['draft','new','ins','appr'].includes(c.s)&&daysSinceUpdate(c)>=20;});
+  html+='<div class="sl2">Aging — Active Claims</div>';
+  html+='<div class="cg cg3" style="margin-bottom:14px">';
+  html+='<div class="sc am"><div class="sc-l">7-13 days</div><div class="sc-v am">'+bucket7.length+'</div><div class="sc-s">Status check due</div></div>';
+  html+='<div class="sc or"><div class="sc-l">14-19 days</div><div class="sc-v or">'+bucket14.length+'</div><div class="sc-s">Slow submission</div></div>';
+  html+='<div class="sc rd"><div class="sc-l">20+ days</div><div class="sc-v rd">'+bucket20.length+'</div><div class="sc-s">Critical — at risk</div></div>';
+  html+='</div>';
+
+  // ── TECH SUBMISSION TIMING (no $) ──────────────────────────────
+  var techStats={};
+  all.forEach(function(c){
+    if(!c||!c.tech)return;
+    if(!techStats[c.tech])techStats[c.tech]={t:c.tech,loc:c.loc,subs:0,sumLag:0,lagCount:0,irs:0,slow:0};
+    techStats[c.tech].subs++;
+    if(c.info)techStats[c.tech].irs++;
+    if(c.workCompleted&&c.submittedAt){
+      var d=Math.floor((new Date(c.submittedAt).getTime()-new Date(c.workCompleted).getTime())/86400000);
+      if(d>=0){techStats[c.tech].sumLag+=d;techStats[c.tech].lagCount++;if(d>14)techStats[c.tech].slow++;}
+    }
+  });
+  var techList=Object.values(techStats).sort(function(a,b){return b.subs-a.subs;});
+
+  if(techList.length){
+    html+='<div class="sl2">Tech Submission Performance (Time-Based)</div>';
+    html+='<div class="tc" style="margin-bottom:14px"><table><thead><tr><th>Tech</th><th>Location</th><th>Total Claims</th><th>Avg Submit Lag</th><th>Slow (&gt;14d)</th><th>Info Requests</th><th>First-Pass</th></tr></thead><tbody>';
+    techList.forEach(function(t){
+      var avgLag=t.lagCount>0?Math.round(t.sumLag/t.lagCount):0;
+      var lagCol=avgLag>14?'var(--rd)':avgLag>7?'var(--am)':'var(--gn)';
+      var fp=t.subs>0?Math.round((1-t.irs/t.subs)*100):100;
+      var fpCol=fp>=90?'var(--gn)':fp>=80?'var(--am)':'var(--rd)';
+      html+='<tr>';
+      html+='<td style="font-weight:600">'+t.t+'</td>';
+      html+='<td><span class="loc-badge loc-'+(t.loc||'').toLowerCase()+'">'+(t.loc||'-')+'</span></td>';
+      html+='<td>'+t.subs+'</td>';
+      html+='<td style="color:'+lagCol+';font-weight:700">'+(avgLag>0?avgLag+'d':'-')+'</td>';
+      html+='<td style="color:'+(t.slow>0?'var(--rd)':'var(--gn)')+';font-weight:700">'+t.slow+'</td>';
+      html+='<td style="color:'+(t.irs>2?'var(--rd)':t.irs>0?'var(--am)':'var(--gn)')+';font-weight:700">'+t.irs+'</td>';
+      html+='<td style="color:'+fpCol+';font-weight:700">'+fp+'%</td>';
+      html+='</tr>';
+    });
+    html+='</tbody></table></div>';
+  }
+
+  // ── SLOW SUBMISSIONS LIST (no $) ───────────────────────────────
+  var slowList=[];
+  all.forEach(function(c){
+    if(c&&c.workCompleted&&c.submittedAt){
+      var d=Math.floor((new Date(c.submittedAt).getTime()-new Date(c.workCompleted).getTime())/86400000);
+      if(d>14)slowList.push({id:c.id,tech:c.tech||'-',cust:c.cust||'-',days:d,oem:c.oem||'-'});
+    }
+  });
+  slowList.sort(function(a,b){return b.days-a.days;});
+  slowList=slowList.slice(0,15);
+
+  if(slowList.length){
+    html+='<div class="sl2">Slowest Submissions (Work → OEM)</div>';
+    html+='<div style="background:var(--wh);border-radius:9px;border:1px solid var(--gbd);padding:10px;margin-bottom:14px">';
+    slowList.forEach(function(s){
+      html+='<div style="background:#FFFBF0;border:1px solid #FFD0A0;border-radius:6px;padding:7px 10px;margin-bottom:4px;display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;cursor:pointer" onclick="openDP(\''+s.id+'\')">';
+      html+='<div style="font-size:11px"><span class="cid">'+s.id+'</span> &middot; '+s.cust+' &middot; Tech: '+s.tech+' &middot; <span style="color:var(--gt)">'+s.oem+'</span></div>';
+      html+='<div style="font-size:11px;font-weight:700;color:var(--rd)">'+s.days+' days</div>';
+      html+='</div>';
+    });
+    html+='</div>';
+  }
+
+  el.innerHTML=html;
+}
+
 function renderAnalytics(){
   var el=document.getElementById('analytics-content');if(!el)return;
   var isMgr=CU&&CU.role==='mgr';var myLoc=isMgr?getMgrLocation(CU.name):'';
+  
+  // ── TIME-ONLY VIEW for Warranty Admin and Service Manager ────────
+  if(CU&&(CU.role==='admin'||CU.role==='mgr')){
+    renderTimeAnalytics(el,isMgr,myLoc);
+    return;
+  }
+  
   var f=_analyticsFilter;var isFiltered=f.type!=='all';
   var html='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">';
   html+='<div style="font-size:16px;font-weight:700">Analytics &amp; Performance'+(isMgr?' - '+myLoc:'')+'</div>';
@@ -4499,7 +4916,9 @@ async function uploadClaimPhotos(claimId,files){
     try{
       var b64=await fileToBase64(files[i]);
       var slotName=PHOTO_SLOT_NAMES[i]||('Photo_'+(i+1));
-      var fileName=claimId+'_'+slotName+'.jpg';
+      var claimRecord=getClaim(claimId);
+      var oemPart=(claimRecord&&claimRecord.oemClaimNum&&claimRecord.oemClaimNum.trim())?(claimRecord.oemClaimNum.trim()+'_'):'';
+      var fileName=claimId+'_'+oemPart+slotName+'.jpg';
       // Store locally on claim object
       results.push({slot:i,name:slotName,fileName:fileName,dataUrl:b64});
       // Upload to Drive
@@ -4523,7 +4942,8 @@ function addPhotosToClaimFromDP(claimId, inp){
   files.forEach(function(file,i){
     var slotIdx=slotOffset+i;
     var slotName=PHOTO_SLOT_NAMES[slotIdx]||('Additional_Photo_'+(slotIdx+1));
-    var fileName=claimId+'_'+slotName+'.jpg';
+    var oemPart=(cl.oemClaimNum&&cl.oemClaimNum.trim())?(cl.oemClaimNum.trim()+'_'):'';
+    var fileName=claimId+'_'+oemPart+slotName+'.jpg';
     fileToBase64(file).then(function(dataUrl){
       cl.photos.push({slot:slotIdx,name:slotName,fileName:fileName,dataUrl:dataUrl});
       // Upload to Drive
